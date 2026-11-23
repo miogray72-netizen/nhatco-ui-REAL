@@ -1,0 +1,916 @@
+            
+-- NHATCO UI Library - Donate Edition
+-- API: CreateWindow / AddTab / AddSection / AddToggle / AddButton / AddSlider / AddInput / AddLabel
+-- Tab "donate" luôn đứng đầu, không bị xoá
+-- Thay link donate + QR ở 2 biến DONATE_LINK_URL / DONATE_QR_URL
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local DONATE_LINK_URL = "https://ko-fi.com/chillkid"
+local DONATE_QR_URL = "https://i.imgur.com/your-qr-code.png"
+
+-- ============================================================
+-- CONFIG 1: Theme màu sắc
+-- ============================================================
+local Theme = {
+    BgDark = Color3.fromRGB(6, 12, 24),
+    BgSidebar = Color3.fromRGB(9, 18, 36),
+    BgContent = Color3.fromRGB(11, 22, 43),
+    BgCard = Color3.fromRGB(15, 30, 58),
+    BgRow = Color3.fromRGB(19, 38, 74),
+    BgActiveTab = Color3.fromRGB(22, 58, 110),
+    StrokeSubtle = Color3.fromRGB(36, 66, 116),
+    StrokeAccent = Color3.fromRGB(56, 189, 248),
+    AccentCyan = Color3.fromRGB(56, 189, 248),
+    AccentBlue = Color3.fromRGB(37, 99, 235),
+    AccentBlueHover = Color3.fromRGB(59, 130, 246),
+    DangerRed = Color3.fromRGB(220, 38, 38),
+    DangerHover = Color3.fromRGB(239, 68, 68),
+    TextMain = Color3.fromRGB(246, 250, 255),
+    TextSub = Color3.fromRGB(156, 178, 212),
+    Green = Color3.fromRGB(34, 197, 94),
+    Gold = Color3.fromRGB(250, 204, 21),
+    Discord = Color3.fromRGB(67, 79, 168),
+    ToggleOn = Color3.fromRGB(37, 130, 246),
+    ToggleOff = Color3.fromRGB(52, 70, 98)
+}
+
+-- ============================================================
+-- CONFIG 2: Cấu hình kích thước riêng từng thành phần
+-- ============================================================
+local UIConfig = {
+    Window = { BaseWidth = 830, BaseHeight = 468, MinScale = 0.45, MaxScale = 1.15, Corner = 18 },
+    Sidebar = { Width = 204, Corner = 14, TabHeight = 38, TabCorner = 10 },
+    Banner = { Corner = 22, MinHeight = 88, MaxHeight = 180 },
+    Section = { Corner = 14, PaddingX = 12, PaddingY = 12, Spacing = 8 },
+    Toggle = { Corner = 12, TrackW = 46, TrackH = 24, Knob = 18 },
+    Button = { Corner = 12, Height = 40, HeightDesc = 48, HoverTween = 0.14 },
+    Slider = { Corner = 12, Height = 56, TrackH = 6, Knob = 14 },
+    Input = { Corner = 12, Height = 44 },
+    Label = { Corner = 12, Height = 32, HeightSub = 48, HeightCenter = 40 },
+    Icon = { TabSize = 18, HeartSize = 14, QRSize = 14, CrownW = 20, CrownH = 16 }
+}
+
+-- ============================================================
+-- Helpers khung dựng cơ bản
+-- ============================================================
+local function GetGuiParent()
+    if RunService:IsStudio() then return PlayerGui end
+    local ok, hui = pcall(function() return gethui and gethui() end)
+    return (ok and hui) or CoreGui or PlayerGui
+end
+
+local GuiParent = GetGuiParent()
+for _, name in ipairs({ "NHATCO_MENU_LIBRARY_UI", "NHATCO_MENU_NOTICE_UI" }) do
+    local old = GuiParent:FindFirstChild(name)
+    if old then old:Destroy() end
+end
+
+local function NewInst(cls, props, parent)
+    local obj = Instance.new(cls)
+    for k, v in pairs(props) do obj[k] = v end
+    obj.Parent = parent
+    return obj
+end
+
+local function Round(parent, px)
+    return NewInst("UICorner", { CornerRadius = UDim.new(0, px or 12) }, parent)
+end
+
+local function Stroke(parent, color, thickness, transparency)
+    return NewInst("UIStroke", {
+        Color = color or Theme.StrokeSubtle,
+        Thickness = thickness or 1,
+        Transparency = transparency or 0.35,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    }, parent)
+end
+
+local function Label(parent, props)
+    local base = {
+        BackgroundTransparency = 1,
+        TextColor3 = Theme.TextMain,
+        Font = Enum.Font.Gotham,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        BorderSizePixel = 0
+    }
+    for k, v in pairs(props) do base[k] = v end
+    return NewInst("TextLabel", base, parent)
+end
+
+local function CopyToClipboard(text)
+    text = tostring(text or "")
+    if type(setclipboard) == "function" then
+        pcall(setclipboard, text); return true
+    elseif type(toclipboard) == "function" then
+        pcall(toclipboard, text); return true
+    elseif type(set_clipboard) == "function" then
+        pcall(set_clipboard, text); return true
+    end
+    return false
+end
+
+-- ============================================================
+-- MODULE ICON: discord / tab / crown / heart / QR
+-- ============================================================
+local Icons = {}
+
+function Icons.Discord(parent, color3)
+    local iconColor = color3 or Theme.TextMain
+    local holder = NewInst("Frame", {
+        Name = "DiscordIcon", Size = UDim2.fromOffset(20, 16),
+        Position = UDim2.new(0, 12, 0.5, -8),
+        BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 6
+    }, parent)
+
+    local body = NewInst("Frame", {
+        Size = UDim2.fromOffset(20, 14), Position = UDim2.fromOffset(0, 1),
+        BackgroundColor3 = iconColor, BorderSizePixel = 0, ZIndex = 7
+    }, holder)
+    Round(body, 6)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(4, 4), Position = UDim2.fromOffset(5, 5), BackgroundColor3 = Theme.Discord, BorderSizePixel = 0, ZIndex = 8 }, body), 4)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(4, 4), Position = UDim2.fromOffset(11, 5), BackgroundColor3 = Theme.Discord, BorderSizePixel = 0, ZIndex = 8 }, body), 4)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(5, 2.5), Position = UDim2.fromOffset(4, 13), Rotation = -10, BackgroundColor3 = iconColor, BorderSizePixel = 0, ZIndex = 7 }, holder), 2)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(5, 2.5), Position = UDim2.fromOffset(11, 13), Rotation = 10, BackgroundColor3 = iconColor, BorderSizePixel = 0, ZIndex = 7 }, holder), 2)
+    return holder
+end
+
+function Icons.Tab(parent, kind, color3)
+    local k = string.lower(tostring(kind or ""))
+    if k == "" or k == "none" then
+        return function() end, false
+    end
+
+    local holder = NewInst("Frame", {
+        Name = "TabIcon", Size = UDim2.fromOffset(UIConfig.Icon.TabSize, UIConfig.Icon.TabSize),
+        Position = UDim2.new(0, 10, 0.5, -UIConfig.Icon.TabSize / 2),
+        BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 7
+    }, parent)
+
+    if k == "farm" or k == "combat" or k == "swords" then
+        Round(NewInst("Frame", { Size = UDim2.fromOffset(14, 3), Position = UDim2.fromOffset(2, 7.5), Rotation = 45, BackgroundColor3 = color3, BorderSizePixel = 0, ZIndex = 7 }, holder), 2)
+        Round(NewInst("Frame", { Size = UDim2.fromOffset(14, 3), Position = UDim2.fromOffset(2, 7.5), Rotation = -45, BackgroundColor3 = color3, BorderSizePixel = 0, ZIndex = 8 }, holder), 2)
+    elseif k == "teleports" or k == "tp" or k == "pin" then
+        Round(NewInst("Frame", { Size = UDim2.fromOffset(10, 10), Position = UDim2.fromOffset(4, 1.5), BackgroundColor3 = color3, BorderSizePixel = 0, ZIndex = 7 }, holder), 10)
+        Round(NewInst("Frame", { Size = UDim2.fromOffset(4, 4), Position = UDim2.fromOffset(7, 4.5), BackgroundColor3 = Theme.BgSidebar, BorderSizePixel = 0, ZIndex = 8 }, holder), 4)
+        Round(NewInst("Frame", { Size = UDim2.fromOffset(3.5, 5.5), Position = UDim2.fromOffset(7.25, 10.5), BackgroundColor3 = color3, BorderSizePixel = 0, ZIndex = 7 }, holder), 2)
+    elseif k == "misc" or k == "tools" or k == "bolt" then
+        Round(NewInst("Frame", { Size = UDim2.fromOffset(12, 12), Position = UDim2.fromOffset(3, 3), BackgroundColor3 = color3, BorderSizePixel = 0, ZIndex = 7 }, holder), 12)
+        Round(NewInst("Frame", { Size = UDim2.fromOffset(5, 5), Position = UDim2.fromOffset(6.5, 6.5), BackgroundColor3 = Theme.BgSidebar, BorderSizePixel = 0, ZIndex = 8 }, holder), 5)
+    elseif k == "settings" or k == "setting" or k == "sliders" then
+        for i, yOff in ipairs({ 4, 9, 14 }) do
+            NewInst("Frame", { Size = UDim2.fromOffset(14, 2), Position = UDim2.fromOffset(2, yOff), BackgroundColor3 = color3, BorderSizePixel = 0, ZIndex = 7 }, holder)
+            local knobX = (i == 1 and 9) or (i == 2 and 4) or 10
+            Round(NewInst("Frame", { Size = UDim2.fromOffset(5, 5), Position = UDim2.fromOffset(knobX, yOff - 1.5), BackgroundColor3 = Theme.TextMain, BorderSizePixel = 0, ZIndex = 8 }, holder), 5)
+        end
+    elseif k == "heart" or k == "donate" or k == "love" or k == "gift" then
+        Round(NewInst("Frame", { Size = UDim2.fromOffset(7, 7), Position = UDim2.fromOffset(2, 3), BackgroundColor3 = color3, BorderSizePixel = 0, ZIndex = 7 }, holder), 7)
+        Round(NewInst("Frame", { Size = UDim2.fromOffset(7, 7), Position = UDim2.fromOffset(9, 3), BackgroundColor3 = color3, BorderSizePixel = 0, ZIndex = 7 }, holder), 7)
+        Round(NewInst("Frame", { Size = UDim2.fromOffset(10, 10), Position = UDim2.fromOffset(4, 8), Rotation = 45, BackgroundColor3 = color3, BorderSizePixel = 0, ZIndex = 7 }, holder), 2)
+    else
+        Round(NewInst("Frame", { Size = UDim2.fromOffset(10, 8), Position = UDim2.fromOffset(4, 2), Rotation = 45, BackgroundColor3 = color3, BorderSizePixel = 0, ZIndex = 7 }, holder), 2)
+        Round(NewInst("Frame", { Size = UDim2.fromOffset(12, 8), Position = UDim2.fromOffset(3, 8), BackgroundColor3 = color3, BorderSizePixel = 0, ZIndex = 8 }, holder), 2)
+    end
+
+    return function(newCol)
+        for _, c in ipairs(holder:GetChildren()) do
+            if c:IsA("GuiObject") and c.BackgroundColor3 ~= Theme.BgSidebar and c.BackgroundColor3 ~= Theme.TextMain then
+                c.BackgroundColor3 = newCol
+            end
+        end
+    end, true
+end
+
+function Icons.Crown(parent, color3)
+    local c = color3 or Theme.Gold
+    local holder = NewInst("Frame", {
+        Name = "CrownIcon", Size = UDim2.fromOffset(UIConfig.Icon.CrownW, UIConfig.Icon.CrownH),
+        Position = UDim2.fromOffset(13, 8),
+        BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 7
+    }, parent)
+
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(20, 4), Position = UDim2.fromOffset(0, 11), BackgroundColor3 = c, BorderSizePixel = 0, ZIndex = 7 }, holder), 2)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(5, 6), Position = UDim2.fromOffset(1, 5), BackgroundColor3 = c, BorderSizePixel = 0, ZIndex = 7 }, holder), 1)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(6, 9), Position = UDim2.fromOffset(7, 2), BackgroundColor3 = c, BorderSizePixel = 0, ZIndex = 7 }, holder), 1)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(5, 6), Position = UDim2.fromOffset(14, 5), BackgroundColor3 = c, BorderSizePixel = 0, ZIndex = 7 }, holder), 1)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(3, 3), Position = UDim2.fromOffset(2, 2.5), BackgroundColor3 = c, BorderSizePixel = 0, ZIndex = 8 }, holder), 3)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(3, 3), Position = UDim2.fromOffset(8.5, -0.5), BackgroundColor3 = c, BorderSizePixel = 0, ZIndex = 8 }, holder), 3)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(3, 3), Position = UDim2.fromOffset(15, 2.5), BackgroundColor3 = c, BorderSizePixel = 0, ZIndex = 8 }, holder), 3)
+    return holder
+end
+
+function Icons.MiniHeart(parent, pos, color3, transparency)
+    local c = color3 or Theme.AccentCyan
+    local t = transparency or 0
+    local holder = NewInst("Frame", {
+        Name = "MiniHeart", Size = UDim2.fromOffset(UIConfig.Icon.HeartSize, 13),
+        Position = pos, BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 8
+    }, parent)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(6, 6), Position = UDim2.fromOffset(0, 1), BackgroundColor3 = c, BackgroundTransparency = t, BorderSizePixel = 0, ZIndex = 8 }, holder), 6)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(6, 6), Position = UDim2.fromOffset(8, 1), BackgroundColor3 = c, BackgroundTransparency = t, BorderSizePixel = 0, ZIndex = 8 }, holder), 6)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(9, 9), Position = UDim2.fromOffset(2.5, 5), Rotation = 45, BackgroundColor3 = c, BackgroundTransparency = t, BorderSizePixel = 0, ZIndex = 8 }, holder), 2)
+    return holder
+end
+
+function Icons.MiniQR(parent, pos, color3)
+    local c = color3 or Theme.TextMain
+    local holder = NewInst("Frame", {
+        Name = "MiniQR", Size = UDim2.fromOffset(UIConfig.Icon.QRSize, UIConfig.Icon.QRSize),
+        Position = pos, BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 8
+    }, parent)
+    local function sq(px, py, s)
+        Round(NewInst("Frame", { Size = UDim2.fromOffset(s, s), Position = UDim2.fromOffset(px, py), BackgroundColor3 = c, BorderSizePixel = 0, ZIndex = 8 }, holder), 2)
+    end
+    sq(0, 0, 5); sq(9, 0, 5); sq(0, 9, 5)
+    sq(9, 9, 3); sq(6, 6, 3); sq(6, 2, 2); sq(2, 6, 2)
+    return holder
+end
+
+-- ============================================================
+-- MODULE COMPONENTS: Section / Banner / Toggle / Button / Slider / Input / Label
+-- ============================================================
+local Components = {}
+
+function Components.CreateSection(page, title, accentColor)
+    local cfg = UIConfig.Section
+    local box = NewInst("Frame", {
+        Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundColor3 = Theme.BgCard, BorderSizePixel = 0, ZIndex = 5
+    }, page)
+    Round(box, cfg.Corner)
+    Stroke(box, Theme.StrokeSubtle, 1, 0.4)
+    NewInst("UIPadding", {
+        PaddingTop = UDim.new(0, cfg.PaddingY), PaddingBottom = UDim.new(0, cfg.PaddingY),
+        PaddingLeft = UDim.new(0, cfg.PaddingX), PaddingRight = UDim.new(0, cfg.PaddingX)
+    }, box)
+    NewInst("UIListLayout", { Padding = UDim.new(0, cfg.Spacing), SortOrder = Enum.SortOrder.LayoutOrder }, box)
+    if title ~= nil and title ~= "" then
+        Label(box, { Text = title, Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, TextSize = 13, TextColor3 = accentColor, ZIndex = 6 })
+    end
+    return box
+end
+
+function Components.CreateBanner(parentPage, opts)
+    local cornerPx = UIConfig.Banner.Corner
+    local mainRegion = NewInst("Frame", {
+        Name = "ThemesTabMain", Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundColor3 = Theme.BgCard, BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 5
+    }, parentPage)
+    Round(mainRegion, cornerPx)
+    Stroke(mainRegion, opts.AccentColor or Theme.AccentCyan, 1, 0.35)
+    NewInst("UISizeConstraint", {
+        MinSize = Vector2.new(0, UIConfig.Banner.MinHeight),
+        MaxSize = Vector2.new(9999, UIConfig.Banner.MaxHeight)
+    }, mainRegion)
+
+    local iconClip = NewInst("Frame", {
+        Name = "ThemesTabMainIconClip", Size = UDim2.fromScale(1, 1), Position = UDim2.fromScale(0, 0),
+        BackgroundTransparency = 1, BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 6
+    }, mainRegion)
+    Round(iconClip, cornerPx)
+
+    if opts.Image ~= nil and opts.Image ~= "" then
+        NewInst("ImageLabel", {
+            Name = "ThemesTabMainIcon", Size = UDim2.fromScale(1, 1), Position = UDim2.fromScale(0, 0),
+            AnchorPoint = Vector2.new(0, 0), BackgroundTransparency = 1, Image = opts.Image,
+            ScaleType = Enum.ScaleType.Crop, ImageTransparency = 0.25, BorderSizePixel = 0, ZIndex = 6
+        }, iconClip)
+    end
+
+    local shade = NewInst("Frame", {
+        Name = "ThemesTabMainShade", Size = UDim2.fromScale(1, 1), Position = UDim2.fromScale(0, 0),
+        BackgroundColor3 = Theme.BgDark, BackgroundTransparency = 0.45, BorderSizePixel = 0, ZIndex = 7
+    }, iconClip)
+    Round(shade, cornerPx)
+    NewInst("UIGradient", {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(10, 25, 48)),
+            ColorSequenceKeypoint.new(0.6, Color3.fromRGB(16, 36, 68)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(28, 64, 112))
+        }),
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.25),
+            NumberSequenceKeypoint.new(1, 0.55)
+        }),
+        Rotation = 0
+    }, shade)
+
+    if opts.Decorate then
+        Icons.MiniHeart(iconClip, UDim2.new(0.84, 0, 0.16, 0), Theme.Gold, 0.65)
+        Icons.MiniHeart(iconClip, UDim2.new(0.91, 0, 0.55, 0), Theme.AccentCyan, 0.8)
+        Icons.MiniHeart(iconClip, UDim2.new(0.74, 0, 0.62, 0), Theme.Gold, 0.85)
+        Round(NewInst("Frame", { Size = UDim2.fromOffset(28, 28), Position = UDim2.new(0.9, -18, 0.12, 0), BackgroundColor3 = Theme.AccentCyan, BackgroundTransparency = 0.85, Rotation = 20, BorderSizePixel = 0, ZIndex = 7 }, iconClip), 14)
+        Round(NewInst("Frame", { Size = UDim2.fromOffset(14, 14), Position = UDim2.new(0.68, 0, 0.2, 0), BackgroundColor3 = Theme.Gold, BackgroundTransparency = 0.8, BorderSizePixel = 0, ZIndex = 7 }, iconClip), 7)
+    end
+
+    local textStack = NewInst("Frame", {
+        Name = "ThemesTabMainContent", Size = UDim2.new(1, -36, 0, 0), Position = UDim2.fromOffset(18, 12),
+        AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 8
+    }, mainRegion)
+    NewInst("UIPadding", { PaddingBottom = UDim.new(0, 14) }, textStack)
+    NewInst("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, textStack)
+
+    Label(textStack, {
+        Text = string.upper(opts.Title or "DONATE"), Size = UDim2.new(1, 0, 0, 26),
+        Font = Enum.Font.GothamBlack, TextSize = 20, TextColor3 = opts.AccentColor or Theme.AccentCyan, ZIndex = 8
+    })
+    Label(textStack, {
+        Text = (opts.BrandTitle or "NHATCO") .. " • " .. (opts.BannerSub or "Donate & Credits"),
+        Size = UDim2.new(1, 0, 0, 17), Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 8
+    })
+    local noteLbl = Label(textStack, {
+        Text = opts.BannerNote or "", Size = UDim2.new(1, 0, 0, 17), Font = Enum.Font.GothamMedium,
+        TextSize = 11, TextColor3 = Theme.TextSub, TextWrapped = true, ZIndex = 8
+    })
+    return mainRegion, noteLbl
+end
+
+function Components.CreateToggle(parent, o, accentColor)
+    local cfg = UIConfig.Toggle
+    local state = o.Default == true
+    local row = NewInst("Frame", {
+        Size = UDim2.new(1, 0, 0, 46), BackgroundColor3 = Theme.BgRow, BorderSizePixel = 0, ZIndex = 6
+    }, parent)
+    Round(row, cfg.Corner)
+    Stroke(row, Theme.StrokeSubtle, 1, 0.5)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(3, 22), Position = UDim2.fromOffset(9, 12), BackgroundColor3 = accentColor, BorderSizePixel = 0, ZIndex = 8 }, row), 3)
+
+    local titleY = (o.Desc and o.Desc ~= "") and 5 or 14
+    Label(row, { Text = o.Title or "Toggle", Size = UDim2.new(1, -88, 0, 18), Position = UDim2.fromOffset(20, titleY), Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 7 })
+    if o.Desc and o.Desc ~= "" then
+        Label(row, { Text = o.Desc, Size = UDim2.new(1, -88, 0, 16), Position = UDim2.fromOffset(20, 23), Font = Enum.Font.GothamMedium, TextSize = 10, TextColor3 = Theme.TextSub, ZIndex = 7 })
+    end
+
+    local track = NewInst("TextButton", {
+        Size = UDim2.fromOffset(cfg.TrackW, cfg.TrackH), Position = UDim2.new(1, -56, 0.5, -cfg.TrackH / 2),
+        BackgroundColor3 = state and Theme.ToggleOn or Theme.ToggleOff, Text = "",
+        AutoButtonColor = false, BorderSizePixel = 0, ZIndex = 7
+    }, row)
+    Round(track, cfg.TrackH / 2)
+    local knobOn = UDim2.fromOffset(cfg.TrackW - cfg.Knob - 3, 3)
+    local knobOff = UDim2.fromOffset(3, 3)
+    local knob = NewInst("Frame", {
+        Size = UDim2.fromOffset(cfg.Knob, cfg.Knob), Position = state and knobOn or knobOff,
+        BackgroundColor3 = Theme.TextMain, BorderSizePixel = 0, ZIndex = 8
+    }, track)
+    Round(knob, cfg.Knob / 2)
+
+    local function SetVal(v, fire)
+        state = v
+        TweenService:Create(track, TweenInfo.new(0.16), { BackgroundColor3 = state and Theme.ToggleOn or Theme.ToggleOff }):Play()
+        TweenService:Create(knob, TweenInfo.new(0.16), { Position = state and knobOn or knobOff }):Play()
+        if fire and type(o.Callback) == "function" then task.spawn(o.Callback, state) end
+    end
+    track.MouseButton1Click:Connect(function() SetVal(not state, true) end)
+    if state and type(o.Callback) == "function" then task.spawn(o.Callback, state) end
+    return { Set = SetVal, Get = function() return state end }
+end
+
+function Components.CreateButton(parent, o, accentColor)
+    local cfg = UIConfig.Button
+    local hasDesc = o.Desc ~= nil and o.Desc ~= ""
+    local btn = NewInst("TextButton", {
+        Size = UDim2.new(1, 0, 0, hasDesc and cfg.HeightDesc or cfg.Height),
+        BackgroundColor3 = o.Color or Theme.AccentBlue, Text = "", AutoButtonColor = false, BorderSizePixel = 0, ZIndex = 7
+    }, parent)
+    Round(btn, cfg.Corner)
+    Stroke(btn, o.StrokeColor or Theme.StrokeAccent, 1, 0.45)
+
+    if o.Gradient then
+        NewInst("UIGradient", {
+            Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, o.GradientFrom or Theme.AccentBlue),
+                ColorSequenceKeypoint.new(1, o.GradientTo or Theme.AccentCyan)
+            }),
+            Rotation = 15
+        }, btn)
+    end
+
+    local iconPad = 24
+    if o.Icon == "heart" then
+        Icons.MiniHeart(btn, UDim2.fromOffset(14, hasDesc and 17 or 13), Theme.TextMain)
+        iconPad = 38
+    elseif o.Icon == "qr" then
+        Icons.MiniQR(btn, UDim2.fromOffset(13, hasDesc and 17 or 13), Theme.TextMain)
+        iconPad = 38
+    else
+        Round(NewInst("Frame", { Size = UDim2.fromOffset(3, hasDesc and 26 or 20), Position = UDim2.fromOffset(9, hasDesc and 11 or 10), BackgroundColor3 = accentColor, BorderSizePixel = 0, ZIndex = 8 }, btn), 3)
+    end
+
+    local titleLbl = Label(btn, {
+        Text = o.Title or "Button", Size = UDim2.new(1, -iconPad - 10, 0, 18),
+        Position = UDim2.fromOffset(iconPad, hasDesc and 9 or 11), Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 8
+    })
+    if hasDesc then
+        Label(btn, {
+            Text = o.Desc, Size = UDim2.new(1, -iconPad - 10, 0, 14), Position = UDim2.fromOffset(iconPad, 29),
+            Font = Enum.Font.GothamMedium, TextSize = 10, TextColor3 = Theme.TextSub, ZIndex = 8
+        })
+    end
+
+    local baseCol = o.Color or Theme.AccentBlue
+    local hoverCol = o.HoverColor or Theme.AccentBlueHover
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(cfg.HoverTween), { BackgroundColor3 = hoverCol }):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(cfg.HoverTween), { BackgroundColor3 = baseCol }):Play()
+    end)
+    btn.MouseButton1Click:Connect(function()
+        if type(o.Callback) == "function" then task.spawn(o.Callback) end
+        if o.Feedback ~= false then
+            local oldText = titleLbl.Text
+            titleLbl.Text = o.FeedbackText or "Đã sao chép!"
+            task.delay(1.2, function() if titleLbl.Parent then titleLbl.Text = oldText end end)
+        end
+    end)
+    return btn
+end
+
+function Components.CreateSlider(parent, o, accentColor)
+    local cfg = UIConfig.Slider
+    local min = tonumber(o.Min) or 0
+    local max = tonumber(o.Max) or 100
+    local value = math.clamp(tonumber(o.Default) or min, min, max)
+    local suffix = o.Suffix or ""
+
+    local row = NewInst("Frame", {
+        Size = UDim2.new(1, 0, 0, cfg.Height), BackgroundColor3 = Theme.BgRow, BorderSizePixel = 0, ZIndex = 6
+    }, parent)
+    Round(row, cfg.Corner)
+    Stroke(row, Theme.StrokeSubtle, 1, 0.5)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(3, 22), Position = UDim2.fromOffset(9, 10), BackgroundColor3 = accentColor, BorderSizePixel = 0, ZIndex = 8 }, row), 3)
+
+    Label(row, { Text = o.Title or "Slider", Size = UDim2.new(1, -100, 0, 18), Position = UDim2.fromOffset(20, 8), Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 7 })
+    local valueLbl = Label(row, {
+        Text = "", Size = UDim2.fromOffset(80, 18), Position = UDim2.new(1, -96, 0, 8),
+        Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = accentColor,
+        TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 7
+    })
+
+    local track = NewInst("Frame", {
+        Size = UDim2.new(1, -40, 0, cfg.TrackH), Position = UDim2.fromOffset(20, 36),
+        BackgroundColor3 = Theme.ToggleOff, BorderSizePixel = 0, ZIndex = 7
+    }, row)
+    Round(track, cfg.TrackH / 2)
+    local fill = NewInst("Frame", { Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = Theme.AccentBlue, BorderSizePixel = 0, ZIndex = 8 }, track)
+    Round(fill, cfg.TrackH / 2)
+    local knob = NewInst("Frame", {
+        Size = UDim2.fromOffset(cfg.Knob, cfg.Knob), Position = UDim2.new(0, -cfg.Knob / 2, 0.5, -cfg.Knob / 2),
+        BackgroundColor3 = Theme.TextMain, BorderSizePixel = 0, ZIndex = 9
+    }, fill)
+    Round(knob, cfg.Knob / 2)
+
+    local function Render(v, fire)
+        value = v
+        local ratio = (max > min) and (v - min) / (max - min) or 0
+        fill.Size = UDim2.new(ratio, 0, 1, 0)
+        knob.Position = UDim2.new(ratio, -cfg.Knob / 2, 0.5, -cfg.Knob / 2)
+        valueLbl.Text = string.format("%d%s", math.floor(v + 0.5), suffix)
+        if fire and type(o.Callback) == "function" then task.spawn(o.Callback, v) end
+    end
+
+    local dragging = false
+    local function UpdateFromX(input)
+        local ratio = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+        Render(min + ratio * (max - min), true)
+    end
+    track.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; UpdateFromX(inp)
+        end
+    end)
+    UIS.InputChanged:Connect(function(inp)
+        if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+            UpdateFromX(inp)
+        end
+    end)
+    UIS.InputEnded:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    Render(value, false)
+    return { Set = function(v) Render(math.clamp(tonumber(v) or min, min, max), true) end, Get = function() return value end }
+end
+
+function Components.CreateInput(parent, o, accentColor)
+    local cfg = UIConfig.Input
+    local row = NewInst("Frame", {
+        Size = UDim2.new(1, 0, 0, cfg.Height), BackgroundColor3 = Theme.BgRow, BorderSizePixel = 0, ZIndex = 6
+    }, parent)
+    Round(row, cfg.Corner)
+    Stroke(row, Theme.StrokeSubtle, 1, 0.5)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(3, 20), Position = UDim2.fromOffset(9, 12), BackgroundColor3 = accentColor, BorderSizePixel = 0, ZIndex = 8 }, row), 3)
+
+    local boxInput = NewInst("TextBox", {
+        Size = UDim2.new(1, -24, 1, -8), Position = UDim2.fromOffset(18, 4),
+        BackgroundTransparency = 1, Text = tostring(o.Default or ""),
+        PlaceholderText = tostring(o.Placeholder or "Nhập nội dung..."), PlaceholderColor3 = Theme.TextSub,
+        TextColor3 = Theme.TextMain, Font = Enum.Font.GothamMedium, TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left, ClearTextOnFocus = false, BorderSizePixel = 0, ZIndex = 7
+    }, row)
+    boxInput.FocusLost:Connect(function()
+        if type(o.Callback) == "function" then task.spawn(o.Callback, boxInput.Text) end
+    end)
+    return boxInput
+end
+
+function Components.CreateLabel(parent, o)
+    o = o or {}
+    local cfg = UIConfig.Label
+    local hasSub = o.Subtitle ~= nil and o.Subtitle ~= ""
+    local row = NewInst("Frame", {
+        Name = "LabelRow", Size = UDim2.new(1, 0, 0, hasSub and cfg.HeightSub or (o.Center and cfg.HeightCenter or cfg.Height)),
+        BackgroundColor3 = Theme.BgRow, BackgroundTransparency = o.Transparent == true and 1 or 0,
+        BorderSizePixel = 0, ZIndex = 6
+    }, parent)
+    if o.Transparent ~= true then
+        Round(row, cfg.Corner)
+        Stroke(row, o.StrokeColor or Theme.StrokeSubtle, 1, 0.5)
+    end
+
+    local leftPad = 16
+    if o.Icon == "crown" then
+        Icons.Crown(row, o.IconColor or Theme.Gold)
+        leftPad = 42
+    end
+
+    if o.Center then
+        Label(row, {
+            Text = o.Title or "", Size = UDim2.new(1, -16, 0, 30), Position = UDim2.fromOffset(8, 5),
+            Font = o.Bold == false and Enum.Font.GothamMedium or Enum.Font.GothamBold, TextSize = o.TextSize or 12,
+            TextColor3 = o.TextColor3 or Theme.TextSub, TextWrapped = true,
+            TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 7
+        })
+    else
+        Label(row, {
+            Text = o.Title or "", Size = UDim2.new(1, -leftPad, 0, 18), Position = UDim2.fromOffset(leftPad, hasSub and 9 or 7),
+            Font = o.Bold == false and Enum.Font.GothamMedium or Enum.Font.GothamBold, TextSize = o.TextSize or 13,
+            TextColor3 = o.TitleColor or o.TextColor3 or Theme.TextMain, ZIndex = 7
+        })
+        if hasSub then
+            Label(row, {
+                Text = o.Subtitle, Size = UDim2.new(1, -leftPad, 0, 16), Position = UDim2.fromOffset(leftPad, 28),
+                Font = Enum.Font.GothamMedium, TextSize = 10, TextColor3 = o.SubtitleColor or Theme.TextSub, ZIndex = 7
+            })
+        end
+    end
+    return row
+end
+
+-- ============================================================
+-- LIBRARY: CreateWindow + API
+-- ============================================================
+local Library = {}
+
+function Library:CreateWindow(opts)
+    opts = opts or {}
+    local brandTitle = opts.Title or "NHATCO"
+    local brandSub = opts.SubTitle or "Modern UI Suite"
+    local baseHeaderDesc = opts.HeaderDesc or "Giao diện hiện đại • Thu phóng & thu nhỏ mượt"
+    local bannerSub = opts.BannerSub or "Donate & Credits"
+    local bannerNote = opts.BannerNote or opts.BannerQuote or "Ủng hộ nhóm qua link hoặc mã QR bên dưới"
+    local footerLeft = opts.FooterLeft or "NHATCO • UI v4.0 Modern"
+    local showFooterPlaceId = opts.ShowFooterPlaceId == true
+    local discordLink = opts.DiscordLink or "https://discord.gg/7vzVYYPYst"
+    local accentColor = opts.TitleAccentColor or Theme.AccentCyan
+    local noticeEnabled = opts.MenuNotice ~= false
+    local minScale = tonumber(opts.MinScale) or UIConfig.Window.MinScale
+    local maxScale = tonumber(opts.MaxScale) or UIConfig.Window.MaxScale
+    local manualScale = tonumber(opts.DefaultScale)
+
+    local ScreenGui = NewInst("ScreenGui", { Name = "NHATCO_MENU_LIBRARY_UI", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 180 }, GuiParent)
+    local NoticeGui = NewInst("ScreenGui", { Name = "NHATCO_MENU_NOTICE_UI", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 220 }, GuiParent)
+
+    local NoticeCard = NewInst("Frame", { Name = "SingleMenuNotice", Size = UDim2.fromOffset(312, 58), Position = UDim2.new(1, 340, 1, -76), BackgroundColor3 = Theme.BgCard, BorderSizePixel = 0, ZIndex = 20 }, NoticeGui)
+    Round(NoticeCard, 14); Stroke(NoticeCard, accentColor, 1, 0.3)
+    local NoticeBar = NewInst("Frame", { Size = UDim2.fromOffset(4, 36), Position = UDim2.fromOffset(11, 11), BackgroundColor3 = Theme.Green, BorderSizePixel = 0, ZIndex = 21 }, NoticeCard)
+    Round(NoticeBar, 4)
+    local NoticeTitle = Label(NoticeCard, { Text = brandTitle .. " Menu", Size = UDim2.new(1, -28, 0, 18), Position = UDim2.fromOffset(23, 9), Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = Theme.Green, ZIndex = 21 })
+    local NoticeBody = Label(NoticeCard, { Text = "Đã mở thành công menu lên", Size = UDim2.new(1, -28, 0, 20), Position = UDim2.fromOffset(23, 28), Font = Enum.Font.GothamMedium, TextSize = 11, ZIndex = 21 })
+
+    local noticeToken = 0
+    local function ShowNotice(msg, isOpen)
+        if not noticeEnabled then return end
+        noticeToken = noticeToken + 1
+        local tok = noticeToken
+        local col = isOpen and Theme.Green or Theme.AccentCyan
+        NoticeBar.BackgroundColor3 = col
+        NoticeTitle.TextColor3 = col
+        NoticeTitle.Text = brandTitle .. (isOpen and " • Menu Opened" or " • Menu Minimized")
+        NoticeBody.Text = tostring(msg)
+        TweenService:Create(NoticeCard, TweenInfo.new(0.26, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Position = UDim2.new(1, -328, 1, -76) }):Play()
+        task.delay(2.4, function()
+            if tok == noticeToken and NoticeCard.Parent then
+                TweenService:Create(NoticeCard, TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.In), { Position = UDim2.new(1, 340, 1, -76) }):Play()
+            end
+        end)
+    end
+
+    local BASE_W, BASE_H = UIConfig.Window.BaseWidth, UIConfig.Window.BaseHeight
+    local isClosed, isMinimized = false, false
+
+    local MainFrame = NewInst("Frame", { Name = "MainFrame", Size = UDim2.fromOffset(BASE_W, BASE_H), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Theme.BgDark, BorderSizePixel = 0, ClipsDescendants = true }, ScreenGui)
+    Round(MainFrame, UIConfig.Window.Corner); Stroke(MainFrame, Theme.StrokeSubtle, 1.2, 0.25)
+    local MainScale = NewInst("UIScale", { Scale = 1 }, MainFrame)
+
+    local function ComputeScale()
+        if manualScale then return math.clamp(manualScale, minScale, maxScale) end
+        local cam = workspace.CurrentCamera
+        if not cam then return 1 end
+        local vp = cam.ViewportSize
+        if vp.X <= 0 or vp.Y <= 0 then return 1 end
+        return math.clamp(math.min(1.0, (vp.X - 24) / BASE_W, (vp.Y - 24) / BASE_H), minScale, maxScale)
+    end
+    local scaleQueued = false
+    local function ApplyScale()
+        scaleQueued = false
+        if isClosed or not MainScale.Parent then return end
+        local target = ComputeScale()
+        if math.abs(MainScale.Scale - target) > 0.002 then MainScale.Scale = target end
+    end
+    local function QueueScale()
+        if isClosed or scaleQueued then return end
+        scaleQueued = true
+        task.defer(ApplyScale)
+    end
+    ApplyScale()
+    if workspace.CurrentCamera then
+        workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(QueueScale)
+    end
+
+    local MiniBar = NewInst("Frame", { Name = "MiniBar", Size = UDim2.fromOffset(252, 42), Position = UDim2.new(0.5, -126, 0, 18), BackgroundColor3 = Theme.BgSidebar, BorderSizePixel = 0, Visible = false, ZIndex = 30 }, ScreenGui)
+    Round(MiniBar, 12); Stroke(MiniBar, accentColor, 1, 0.35)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(8, 8), Position = UDim2.fromOffset(13, 17), BackgroundColor3 = accentColor, BorderSizePixel = 0, ZIndex = 31 }, MiniBar), 8)
+    Label(MiniBar, { Text = string.upper(brandTitle) .. " • OPEN MENU", Size = UDim2.new(1, -72, 1, 0), Position = UDim2.fromOffset(28, 0), Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 31 })
+    local ExpandBtn = NewInst("TextButton", { Size = UDim2.fromOffset(28, 28), Position = UDim2.new(1, -35, 0.5, -14), BackgroundColor3 = Theme.AccentBlue, Text = "+", TextColor3 = Theme.TextMain, Font = Enum.Font.GothamBold, TextSize = 16, AutoButtonColor = false, BorderSizePixel = 0, ZIndex = 32 }, MiniBar)
+    Round(ExpandBtn, 8)
+
+    local Sidebar = NewInst("Frame", { Name = "Sidebar", Size = UDim2.new(0, UIConfig.Sidebar.Width, 1, -36), Position = UDim2.fromOffset(7, 7), BackgroundColor3 = Theme.BgSidebar, BorderSizePixel = 0, ZIndex = 3 }, MainFrame)
+    Round(Sidebar, UIConfig.Sidebar.Corner); Stroke(Sidebar, Theme.StrokeSubtle, 1, 0.45)
+    Label(Sidebar, { Text = string.upper(brandTitle), Size = UDim2.new(1, -24, 0, 28), Position = UDim2.fromOffset(16, 14), Font = Enum.Font.GothamBlack, TextSize = 21, ZIndex = 5 })
+    Label(Sidebar, { Text = brandSub, Size = UDim2.new(1, -24, 0, 16), Position = UDim2.fromOffset(16, 42), Font = Enum.Font.GothamMedium, TextSize = 11, TextColor3 = Theme.TextSub, ZIndex = 5 })
+
+    local TabList = NewInst("ScrollingFrame", { Name = "TabList", Size = UDim2.new(1, -14, 0, 196), Position = UDim2.fromOffset(7, 68), BackgroundTransparency = 1, ScrollBarThickness = 2, ScrollBarImageColor3 = accentColor, CanvasSize = UDim2.fromOffset(0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, BorderSizePixel = 0, ZIndex = 5 }, Sidebar)
+    NewInst("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, TabList)
+
+    local PlayerCard = NewInst("Frame", { Name = "PlayerCard", Size = UDim2.new(1, -16, 0, 68), Position = UDim2.new(0, 8, 1, -120), BackgroundColor3 = Theme.BgCard, BorderSizePixel = 0, ZIndex = 5 }, Sidebar)
+    Round(PlayerCard, 12); Stroke(PlayerCard, Theme.StrokeSubtle, 1, 0.4)
+    local StatusLbl = Label(PlayerCard, { Text = "• Status: Ready", Size = UDim2.new(1, -14, 0, 18), Position = UDim2.fromOffset(10, 6), Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = Theme.Green, ZIndex = 6 })
+    local PlayerLbl = Label(PlayerCard, { Text = "Player: " .. LocalPlayer.Name, Size = UDim2.new(1, -14, 0, 16), Position = UDim2.fromOffset(10, 25), Font = Enum.Font.GothamMedium, TextSize = 11, TextColor3 = Theme.TextSub, ZIndex = 6 })
+    local MenuLbl = Label(PlayerCard, { Text = "Menu: Active", Size = UDim2.new(1, -14, 0, 16), Position = UDim2.fromOffset(10, 43), Font = Enum.Font.GothamMedium, TextSize = 11, TextColor3 = Theme.TextSub, ZIndex = 6 })
+
+    local DiscordBtn = NewInst("TextButton", { Name = "DiscordBtn", Size = UDim2.new(1, -16, 0, 34), Position = UDim2.new(0, 8, 1, -44), BackgroundColor3 = Theme.Discord, Text = "", AutoButtonColor = false, BorderSizePixel = 0, ZIndex = 5 }, Sidebar)
+    Round(DiscordBtn, 12)
+    Icons.Discord(DiscordBtn, Theme.TextMain)
+    Label(DiscordBtn, { Text = "Join Discord", Size = UDim2.new(1, -54, 1, 0), Position = UDim2.fromOffset(42, 0), Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 6 })
+    DiscordBtn.MouseButton1Click:Connect(function() CopyToClipboard(discordLink) end)
+
+    local ContentArea = NewInst("Frame", { Name = "ContentArea", Size = UDim2.new(1, -222, 1, -36), Position = UDim2.fromOffset(216, 7), BackgroundColor3 = Theme.BgContent, BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 2 }, MainFrame)
+    Round(ContentArea, 14); Stroke(ContentArea, Theme.StrokeSubtle, 1, 0.45)
+
+    local TopHeader = NewInst("Frame", { Name = "TopHeader", Size = UDim2.new(1, -12, 0, 60), Position = UDim2.fromOffset(6, 6), BackgroundColor3 = Theme.BgSidebar, BorderSizePixel = 0, ZIndex = 6 }, ContentArea)
+    Round(TopHeader, 12); Stroke(TopHeader, Theme.StrokeSubtle, 1, 0.4)
+    Round(NewInst("Frame", { Size = UDim2.fromOffset(4, 30), Position = UDim2.fromOffset(12, 15), BackgroundColor3 = accentColor, BorderSizePixel = 0, ZIndex = 7 }, TopHeader), 4)
+
+    local HeaderTitle = Label(TopHeader, { Text = string.upper(brandTitle) .. " • Donate", Size = UDim2.new(1, -120, 0, 22), Position = UDim2.fromOffset(24, 9), Font = Enum.Font.GothamBold, TextSize = 15, ZIndex = 7 })
+    local HeaderDesc = Label(TopHeader, { Text = "Tab: Donate • " .. baseHeaderDesc, Size = UDim2.new(1, -120, 0, 18), Position = UDim2.fromOffset(24, 33), Font = Enum.Font.GothamMedium, TextSize = 11, TextColor3 = Theme.TextSub, ZIndex = 7 })
+
+    local MinBtn = NewInst("TextButton", { Size = UDim2.fromOffset(28, 28), Position = UDim2.new(1, -70, 0, 16), BackgroundColor3 = Theme.BgCard, Text = "—", TextColor3 = Theme.TextMain, Font = Enum.Font.GothamBold, TextSize = 13, AutoButtonColor = false, BorderSizePixel = 0, ZIndex = 8 }, TopHeader)
+    Round(MinBtn, 8); Stroke(MinBtn, Theme.StrokeSubtle, 1, 0.35)
+    local CloseBtn = NewInst("TextButton", { Size = UDim2.fromOffset(28, 28), Position = UDim2.new(1, -36, 0, 16), BackgroundColor3 = Theme.BgCard, Text = "×", TextColor3 = Theme.TextMain, Font = Enum.Font.GothamBold, TextSize = 18, AutoButtonColor = false, BorderSizePixel = 0, ZIndex = 8 }, TopHeader)
+    Round(CloseBtn, 8); Stroke(CloseBtn, Theme.StrokeSubtle, 1, 0.35)
+
+    local function HookDrag(handle, target)
+        local dragging, origin, startPos
+        handle.InputBegan:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                dragging, origin, startPos = true, inp.Position, target.Position
+            end
+        end)
+        UIS.InputChanged:Connect(function(inp)
+            if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+                local d = inp.Position - origin
+                target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+            end
+        end)
+        UIS.InputEnded:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then dragging = false end
+        end)
+    end
+    HookDrag(TopHeader, MainFrame)
+    HookDrag(MiniBar, MiniBar)
+
+    local PagesHolder = NewInst("Frame", { Size = UDim2.new(1, 0, 1, -68), Position = UDim2.fromOffset(0, 68), BackgroundTransparency = 1, BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 3 }, ContentArea)
+
+    local FooterBar = NewInst("Frame", { Size = UDim2.new(1, -14, 0, 22), Position = UDim2.new(0, 7, 1, -27), BackgroundColor3 = Theme.BgSidebar, BorderSizePixel = 0, ZIndex = 10 }, MainFrame)
+    Round(FooterBar, 8)
+    Label(FooterBar, { Text = "Made by " .. brandTitle, Size = UDim2.fromOffset(170, 22), Position = UDim2.fromOffset(12, 0), Font = Enum.Font.GothamMedium, TextSize = 11, TextColor3 = Theme.TextSub, ZIndex = 11 })
+    Label(FooterBar, { Text = footerLeft, Size = UDim2.fromOffset(260, 22), Position = UDim2.fromOffset(196, 0), Font = Enum.Font.GothamBold, TextSize = 11, ZIndex = 11 })
+    if showFooterPlaceId then
+        Label(FooterBar, { Text = "• PlaceId: " .. tostring(game.PlaceId), Size = UDim2.new(0, 220, 1, 0), Position = UDim2.new(1, -232, 0, 0), Font = Enum.Font.GothamMedium, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Right, TextColor3 = Theme.Green, ZIndex = 11 })
+    end
+
+    local ConfirmBackdrop = NewInst("Frame", { Name = "DestroyConfirmBackdrop", Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(2, 6, 14), BackgroundTransparency = 0.45, BorderSizePixel = 0, Visible = false, ZIndex = 40 }, ScreenGui)
+    local ConfirmBox = NewInst("Frame", { Name = "DestroyConfirmBox", Size = UDim2.fromOffset(340, 148), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Theme.BgSidebar, BorderSizePixel = 0, ZIndex = 41 }, ConfirmBackdrop)
+    Round(ConfirmBox, 16); Stroke(ConfirmBox, accentColor, 1.2, 0.25)
+    Label(ConfirmBox, { Text = "Xác nhận Destroy UI", Size = UDim2.new(1, -28, 0, 22), Position = UDim2.fromOffset(16, 14), Font = Enum.Font.GothamBold, TextSize = 15, TextColor3 = Theme.TextMain, ZIndex = 42 })
+    Label(ConfirmBox, { Text = "Bạn có muốn destroy UI không? Toàn bộ menu sẽ bị xóa khỏi màn hình.", Size = UDim2.new(1, -32, 0, 42), Position = UDim2.fromOffset(16, 40), Font = Enum.Font.GothamMedium, TextSize = 12, TextColor3 = Theme.TextSub, TextWrapped = true, ZIndex = 42 })
+
+    local CancelDestroyBtn = NewInst("TextButton", { Size = UDim2.fromOffset(142, 36), Position = UDim2.new(0, 16, 1, -50), BackgroundColor3 = Theme.BgRow, Text = "Hủy", TextColor3 = Theme.TextMain, Font = Enum.Font.GothamBold, TextSize = 12, AutoButtonColor = false, BorderSizePixel = 0, ZIndex = 42 }, ConfirmBox)
+    Round(CancelDestroyBtn, 10); Stroke(CancelDestroyBtn, Theme.StrokeSubtle, 1, 0.35)
+    local AcceptDestroyBtn = NewInst("TextButton", { Size = UDim2.fromOffset(156, 36), Position = UDim2.new(1, -172, 1, -50), BackgroundColor3 = Theme.DangerRed, Text = "Destroy UI", TextColor3 = Theme.TextMain, Font = Enum.Font.GothamBold, TextSize = 12, AutoButtonColor = false, BorderSizePixel = 0, ZIndex = 42 }, ConfirmBox)
+    Round(AcceptDestroyBtn, 10)
+    AcceptDestroyBtn.MouseEnter:Connect(function() TweenService:Create(AcceptDestroyBtn, TweenInfo.new(0.14), { BackgroundColor3 = Theme.DangerHover }):Play() end)
+    AcceptDestroyBtn.MouseLeave:Connect(function() TweenService:Create(AcceptDestroyBtn, TweenInfo.new(0.14), { BackgroundColor3 = Theme.DangerRed }):Play() end)
+
+    MinBtn.MouseButton1Click:Connect(function()
+        if isClosed or isMinimized then return end
+        isMinimized = true
+        ConfirmBackdrop.Visible = false
+        MainFrame.Visible = false
+        MiniBar.Visible = true
+        MenuLbl.Text = "Menu: Mini"
+        ShowNotice("Đã thu nhỏ menu", false)
+    end)
+    ExpandBtn.MouseButton1Click:Connect(function()
+        if isClosed or not isMinimized then return end
+        isMinimized = false
+        MiniBar.Visible = false
+        MainFrame.Visible = true
+        MenuLbl.Text = "Menu: Active"
+        ApplyScale()
+        ShowNotice("Đã mở rộng lại menu", true)
+    end)
+    CloseBtn.MouseButton1Click:Connect(function()
+        if isClosed then return end
+        ConfirmBackdrop.Visible = true
+    end)
+    CancelDestroyBtn.MouseButton1Click:Connect(function() ConfirmBackdrop.Visible = false end)
+    AcceptDestroyBtn.MouseButton1Click:Connect(function()
+        if isClosed then return end
+        isClosed = true
+        ConfirmBackdrop.Visible = false
+        MainFrame.Visible = false
+        MiniBar.Visible = false
+        ShowNotice("Đã destroy UI thành công", false)
+        task.delay(0.25, function() if ScreenGui.Parent then ScreenGui:Destroy() end end)
+    end)
+
+    local tabs, activeTab, bannerNoteLbl = {}, nil, nil
+
+    local function RefreshBannerNote()
+        if bannerNoteLbl then bannerNoteLbl.Text = tostring(bannerNote or "") end
+    end
+
+    local function SelectTab(name)
+        activeTab = name
+        HeaderTitle.Text = string.upper(brandTitle) .. " • " .. name
+        HeaderDesc.Text = "Tab: " .. name .. " • " .. baseHeaderDesc
+        RefreshBannerNote()
+        for tName, item in pairs(tabs) do
+            local sel = (tName == name)
+            item.Page.Visible = sel
+            TweenService:Create(item.Btn, TweenInfo.new(0.16), {
+                BackgroundColor3 = sel and Theme.BgActiveTab or Color3.new(0, 0, 0),
+                BackgroundTransparency = sel and 0 or 1,
+                TextColor3 = sel and Theme.TextMain or Theme.TextSub
+            }):Play()
+            item.Btn.Font = sel and Enum.Font.GothamBold or Enum.Font.GothamMedium
+            item.Bar.Visible = sel
+            item.SetIcon(sel and accentColor or Theme.TextSub)
+        end
+    end
+
+    local api = {}
+    function api:SetStatus(s, p, m)
+        if s then StatusLbl.Text = "• Status: " .. tostring(s) end
+        if p then PlayerLbl.Text = tostring(p) end
+        if m then MenuLbl.Text = tostring(m) end
+    end
+    function api:SetScale(val)
+        manualScale = val and tonumber(val) or nil
+        QueueScale()
+    end
+    function api:SetNoticeEnabled(flag) noticeEnabled = (flag == true) end
+    function api:SetBannerNote(newNote) bannerNote = tostring(newNote or ""); RefreshBannerNote() end
+    function api:GetBannerNote() return bannerNote end
+    function api:PromptDestroy() if not isClosed then ConfirmBackdrop.Visible = true end end
+
+    function api:AddTab(tabName, tOpts)
+        tOpts = tOpts or {}
+        local btn = NewInst("TextButton", {
+            Size = UDim2.new(1, 0, 0, UIConfig.Sidebar.TabHeight),
+            BackgroundColor3 = Theme.BgActiveTab, BackgroundTransparency = 1, Text = "",
+            TextColor3 = Theme.TextSub, Font = Enum.Font.GothamMedium, TextSize = 13,
+            TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false, BorderSizePixel = 0, ZIndex = 6
+        }, TabList)
+        Round(btn, UIConfig.Sidebar.TabCorner)
+
+        local setIcon, hasIcon = function() end, false
+        if tOpts.Icon ~= "none" then
+            setIcon, hasIcon = Icons.Tab(btn, tOpts.Icon or string.lower(tabName), Theme.TextSub)
+        end
+        btn.Text = (hasIcon and "          " or "    ") .. tabName
+
+        local bar = NewInst("Frame", { Size = UDim2.fromOffset(3, 20), Position = UDim2.new(1, -6, 0.5, -10), BackgroundColor3 = accentColor, BorderSizePixel = 0, Visible = false, ZIndex = 7 }, btn)
+        Round(bar, 4)
+
+        local page = NewInst("ScrollingFrame", {
+            Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ScrollBarThickness = 3,
+            ScrollBarImageColor3 = accentColor, CanvasSize = UDim2.fromOffset(0, 0),
+            AutomaticCanvasSize = Enum.AutomaticSize.Y, BorderSizePixel = 0, Visible = false, ZIndex = 4
+        }, PagesHolder)
+        NewInst("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 14), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) }, page)
+        NewInst("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }, page)
+
+        if tOpts.Banner then
+            local _, noteLabel = Components.CreateBanner(page, {
+                Title = tabName, BrandTitle = brandTitle, BannerSub = bannerSub, BannerNote = bannerNote,
+                AccentColor = accentColor, Image = tOpts.Image or "", Decorate = tOpts.Decorate == true
+            })
+            bannerNoteLbl = noteLabel
+        end
+
+        tabs[tabName] = { Btn = btn, Page = page, Bar = bar, SetIcon = setIcon }
+        btn.MouseButton1Click:Connect(function() SelectTab(tabName) end)
+        if not activeTab then SelectTab(tabName) end
+
+        local tabApi = {}
+        function tabApi:AddSection(secTitle)
+            local box = Components.CreateSection(page, secTitle, accentColor)
+            local secApi = {}
+            function secApi:AddToggle(o) return Components.CreateToggle(box, o, accentColor) end
+            function secApi:AddButton(o) Components.CreateButton(box, o, accentColor) end
+            function secApi:AddSlider(o) return Components.CreateSlider(box, o, accentColor) end
+            function secApi:AddInput(o) return Components.CreateInput(box, o, accentColor) end
+            function secApi:AddLabel(o) return Components.CreateLabel(box, o) end
+            return secApi
+        end
+        return tabApi
+    end
+
+    task.defer(function() ShowNotice("Đã mở thành công menu lên", true) end)
+    return api
+end
+
+-- ============================================================
+-- DEMO: tab "donate" luôn đứng đầu, không xoá
+-- ============================================================
+local Window = Library:CreateWindow({
+    Title = "NHATCO",
+    BannerSub = "Donate & Credits",
+    BannerNote = "cảm ơn bạn đã chân thành ủng hộ nhóm — đó là động lực để nhóm tiếp tục cố gắng"
+})
+
+local DonateTab = Window:AddTab("donate", { Banner = true, Icon = "heart", Decorate = true })
+
+local CreatorSec = DonateTab:AddSection("Người Sáng Tạo")
+CreatorSec:AddLabel({
+    Icon = "crown",
+    IconColor = Theme.Gold,
+    StrokeColor = Theme.Gold,
+    Title = "chillkid",
+    TitleColor = Theme.Gold,
+    Subtitle = "- người tạo chính.",
+    SubtitleColor = Theme.TextSub
+})
+
+local DonateSec = DonateTab:AddSection("Donate")
+DonateSec:AddButton({
+    Title = "Donate bằng link",
+    Desc = "Nhấn để sao chép link ủng hộ",
+    Icon = "heart",
+    Gradient = true,
+    Callback = function() CopyToClipboard(DONATE_LINK_URL) end
+})
+DonateSec:AddButton({
+    Title = "Donate bằng mã QR",
+    Desc = "Nhấn để sao chép link ảnh mã QR",
+    Icon = "qr",
+    Color = Theme.Green,
+    HoverColor = Color3.fromRGB(22, 163, 74),
+    StrokeColor = Theme.Green,
+    Callback = function() CopyToClipboard(DONATE_QR_URL) end
+})
+
+local ThanksSec = DonateTab:AddSection(nil)
+ThanksSec:AddLabel({
+    Center = true,
+    Bold = false,
+    TextSize = 12,
+    StrokeColor = Theme.Gold,
+    TextColor3 = Theme.Gold,
+    Title = "cảm ơn vì sự chân thành của bạn, nhóm vẫn sẽ cố gắng"
+})
