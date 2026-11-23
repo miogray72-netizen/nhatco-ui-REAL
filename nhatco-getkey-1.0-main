@@ -1,0 +1,1436 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
+
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+local CONFIG = {
+    Name = "NHATCO",
+    SubBrand = "KEYSYSTEM",
+    Tagline = "SECURE FAST RELIABLE",
+    Version = "2.0.0",
+    IconId = "rbxassetid://128631229615006",
+    AutoLogin = true,
+
+    Keys = {
+        FreeKey = "...",
+        PremiumKey = "...",
+        ExtraKeys = {
+            "..."
+        },
+        TimedKeys = {
+            {
+                Key = "...",
+                ExpiresAt = "...",
+                DurationDays = 0,
+                DurationHours = 0,
+                Label = "TIMED KEY"
+            }
+        },
+        AutoFillKey = "..."
+    },
+
+    Links = {
+        FreeKeyLink = "...",
+        BuyPremiumLink = "...",
+        DiscordLink = "https://discord.gg/7vzVYYPYst"
+    },
+
+    NextScript = {
+        DirectScript = "...",
+        LoadstringUrl = "...",
+        RawScriptUrl = "...",
+        DefaultAction = function()
+            print("[" .. CONFIG.Name .. "] Da xac thuc thanh cong cho " .. Player.Name)
+        end
+    }
+}
+
+local Palette = {
+    OuterBg = Color3.fromRGB(4, 10, 22),
+    LeftPanel = Color3.fromRGB(6, 15, 32),
+    RightPanel = Color3.fromRGB(5, 12, 26),
+    TopBar = Color3.fromRGB(7, 17, 36),
+    InputBg = Color3.fromRGB(8, 18, 38),
+    CardBg = Color3.fromRGB(11, 24, 48),
+    ToastBg = Color3.fromRGB(10, 20, 40),
+    CyanBright = Color3.fromRGB(110, 220, 255),
+    BlueLight = Color3.fromRGB(56, 165, 255),
+    BluePrimary = Color3.fromRGB(24, 122, 255),
+    BlueDeep = Color3.fromRGB(8, 68, 205),
+    GoldBright = Color3.fromRGB(255, 204, 82),
+    DiscordBg = Color3.fromRGB(22, 32, 68),
+    DiscordGlow = Color3.fromRGB(114, 137, 255),
+    TextWhite = Color3.fromRGB(242, 248, 255),
+    TextSoft = Color3.fromRGB(178, 198, 226),
+    TextMuted = Color3.fromRGB(112, 136, 170),
+    Success = Color3.fromRGB(52, 224, 150),
+    Error = Color3.fromRGB(255, 88, 108)
+}
+
+local function GetParentGui()
+    if RunService:IsStudio() then
+        return PlayerGui
+    end
+    local ok, hui = pcall(function()
+        return gethui and gethui()
+    end)
+    return (ok and hui) or CoreGui or PlayerGui
+end
+
+local ParentGui = GetParentGui()
+
+for _, name in ipairs({ "NHATCO_KEYSYSTEM_UI", "NHATCO_TOAST_UI" }) do
+    local old = ParentGui:FindFirstChild(name)
+    if old then
+        old:Destroy()
+    end
+end
+
+local function Create(class, props, parent)
+    local inst = Instance.new(class)
+    for k, v in pairs(props) do
+        inst[k] = v
+    end
+    inst.Parent = parent
+    return inst
+end
+
+local function AddCorner(parent, radius)
+    return Create("UICorner", {
+        CornerRadius = UDim.new(0, radius)
+    }, parent)
+end
+
+local function AddLabel(parent, props)
+    local defaults = {
+        BackgroundTransparency = 1,
+        TextColor3 = Palette.TextWhite,
+        Font = Enum.Font.Gotham,
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        BorderSizePixel = 0
+    }
+    for k, v in pairs(props) do
+        defaults[k] = v
+    end
+    return Create("TextLabel", defaults, parent)
+end
+
+local function Trim(str)
+    if type(str) ~= "string" then return "" end
+    return str:match("^%s*(.-)%s*$")
+end
+
+local function HasValue(str)
+    local c = Trim(str)
+    return c ~= "" and c ~= "..."
+end
+
+local function CreateIconImage(parent, sizeOffset, pos, zIndex, cornerRadius)
+    local holder = Create("Frame", {
+        Size = UDim2.fromOffset(sizeOffset, sizeOffset),
+        Position = pos,
+        BackgroundColor3 = Palette.CardBg,
+        BackgroundTransparency = 0.2,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        ZIndex = zIndex or 2
+    }, parent)
+    AddCorner(holder, cornerRadius or 10)
+
+    local img = Create("ImageLabel", {
+        Size = UDim2.fromScale(0.88, 0.88),
+        Position = UDim2.fromScale(0.06, 0.06),
+        BackgroundTransparency = 1,
+        Image = CONFIG.IconId,
+        ScaleType = Enum.ScaleType.Fit,
+        BorderSizePixel = 0,
+        ZIndex = (zIndex or 2) + 1
+    }, holder)
+    AddCorner(img, math.max(6, (cornerRadius or 10) - 2))
+
+    return holder, img
+end
+
+local function CreateActionCard(parent, title, tagText, size, pos, bgColor, tagColor, textColor)
+    local cardBtn = Create("TextButton", {
+        Size = size,
+        Position = pos,
+        BackgroundColor3 = bgColor,
+        Text = "",
+        AutoButtonColor = false,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        ZIndex = 4
+    }, parent)
+    AddCorner(cardBtn, 12)
+
+    AddLabel(cardBtn, {
+        Text = tagText,
+        Size = UDim2.new(1, -10, 0, 14),
+        Position = UDim2.fromOffset(5, 7),
+        Font = Enum.Font.GothamBold,
+        TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        TextColor3 = tagColor,
+        ZIndex = 5
+    })
+
+    AddLabel(cardBtn, {
+        Text = title,
+        Size = UDim2.new(1, -8, 0, 18),
+        Position = UDim2.fromOffset(4, 21),
+        Font = Enum.Font.GothamBold,
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        TextColor3 = textColor or Palette.TextWhite,
+        ZIndex = 5
+    })
+
+    cardBtn.MouseEnter:Connect(function()
+        TweenService:Create(cardBtn, TweenInfo.new(0.14), { BackgroundTransparency = 0.1 }):Play()
+    end)
+
+    cardBtn.MouseLeave:Connect(function()
+        TweenService:Create(cardBtn, TweenInfo.new(0.14), { BackgroundTransparency = 0 }):Play()
+    end)
+
+    return cardBtn
+end
+
+local ToastGui = Create("ScreenGui", {
+    Name = "NHATCO_TOAST_UI",
+    ResetOnSpawn = false,
+    IgnoreGuiInset = true,
+    DisplayOrder = 250,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+}, ParentGui)
+
+local ToastContainer = Create("Frame", {
+    Name = "ToastContainer",
+    Size = UDim2.new(0, 320, 1, -24),
+    Position = UDim2.new(1, -336, 0, 12),
+    BackgroundTransparency = 1,
+    ZIndex = 10
+}, ToastGui)
+
+local function ShowRobloxToast(title, message, accentColor, duration)
+    local dur = duration or 2.8
+    local color = accentColor or Palette.CyanBright
+
+    local toast = Create("Frame", {
+        Name = "ToastItem",
+        Size = UDim2.new(1, 0, 0, 68),
+        Position = UDim2.new(1.15, 0, 1, -76),
+        BackgroundColor3 = Palette.ToastBg,
+        BackgroundTransparency = 0.06,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        ZIndex = 12
+    }, ToastContainer)
+    AddCorner(toast, 14)
+
+    local leftBar = Create("Frame", {
+        Size = UDim2.new(0, 4, 0.72, 0),
+        Position = UDim2.new(0, 8, 0.14, 0),
+        BackgroundColor3 = color,
+        BorderSizePixel = 0,
+        ZIndex = 13
+    }, toast)
+    AddCorner(leftBar, 4)
+
+    CreateIconImage(toast, 36, UDim2.fromOffset(18, 16), 13, 10)
+
+    AddLabel(toast, {
+        Text = title,
+        Size = UDim2.new(1, -68, 0, 20),
+        Position = UDim2.fromOffset(62, 12),
+        Font = Enum.Font.GothamBold,
+        TextSize = 13,
+        TextColor3 = color,
+        ZIndex = 13
+    })
+
+    AddLabel(toast, {
+        Text = message,
+        Size = UDim2.new(1, -68, 0, 30),
+        Position = UDim2.fromOffset(62, 31),
+        Font = Enum.Font.Gotham,
+        TextSize = 11,
+        TextWrapped = true,
+        TextColor3 = Palette.TextSoft,
+        ZIndex = 13
+    })
+
+    local progressBg = Create("Frame", {
+        Size = UDim2.new(1, -16, 0, 3),
+        Position = UDim2.new(0, 8, 1, -6),
+        BackgroundColor3 = Palette.CardBg,
+        BackgroundTransparency = 0.2,
+        BorderSizePixel = 0,
+        ZIndex = 13
+    }, toast)
+    AddCorner(progressBg, 3)
+
+    local progressFill = Create("Frame", {
+        Size = UDim2.fromScale(1, 1),
+        BackgroundColor3 = color,
+        BorderSizePixel = 0,
+        ZIndex = 14
+    }, progressBg)
+    AddCorner(progressFill, 3)
+
+    local enterTween = TweenService:Create(toast, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+        Position = UDim2.new(0, 0, 1, -76)
+    })
+    enterTween:Play()
+
+    local barTween = TweenService:Create(progressFill, TweenInfo.new(dur, Enum.EasingStyle.Linear), {
+        Size = UDim2.new(0, 0, 1, 0)
+    })
+    barTween:Play()
+
+    task.delay(dur, function()
+        if not toast or not toast.Parent then return end
+        local exitTween = TweenService:Create(toast, TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+            Position = UDim2.new(1.2, 0, 1, -76),
+            BackgroundTransparency = 1
+        })
+        exitTween:Play()
+        exitTween.Completed:Connect(function()
+            if toast then
+                toast:Destroy()
+            end
+        end)
+    end)
+end
+
+local MemoryStartTimes = {}
+local TIMED_SAVE_FILE = "NhatCo_TimedKeys.json"
+local SESSION_SAVE_FILE = "NhatCo_SavedSession.json"
+
+local function ReadJsonFile(fileName)
+    if type(isfile) == "function" and type(readfile) == "function" then
+        local okExists, exists = pcall(isfile, fileName)
+        if okExists and exists then
+            local okRead, raw = pcall(readfile, fileName)
+            if okRead and type(raw) == "string" and raw ~= "" then
+                local okDecode, decoded = pcall(function()
+                    return HttpService:JSONDecode(raw)
+                end)
+                if okDecode and type(decoded) == "table" then
+                    return decoded
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function WriteJsonFile(fileName, dataTable)
+    if type(writefile) == "function" then
+        pcall(function()
+            writefile(fileName, HttpService:JSONEncode(dataTable))
+        end)
+    end
+end
+
+local SavedStartTimes = ReadJsonFile(TIMED_SAVE_FILE) or {}
+
+local function SaveStartTime(keyStr, startTs)
+    MemoryStartTimes[keyStr] = startTs
+    SavedStartTimes[keyStr] = startTs
+    WriteJsonFile(TIMED_SAVE_FILE, SavedStartTimes)
+end
+
+local function GetStartTime(keyStr)
+    if SavedStartTimes[keyStr] then
+        return tonumber(SavedStartTimes[keyStr])
+    end
+    if MemoryStartTimes[keyStr] then
+        return tonumber(MemoryStartTimes[keyStr])
+    end
+    return nil
+end
+
+local function SaveVerifiedSession(keyStr)
+    local cleaned = Trim(keyStr)
+    if cleaned == "" or cleaned == "..." then return end
+
+    local env = (type(getgenv) == "function" and getgenv()) or _G
+    env.NHATCO_SAVED_KEY = cleaned
+
+    WriteJsonFile(SESSION_SAVE_FILE, {
+        SavedKey = cleaned,
+        SavedAt = os.time(),
+        UserId = Player.UserId
+    })
+end
+
+local function ClearSavedSession()
+    local env = (type(getgenv) == "function" and getgenv()) or _G
+    env.NHATCO_SAVED_KEY = nil
+
+    if type(delfile) == "function" and type(isfile) == "function" then
+        local ok, exists = pcall(isfile, SESSION_SAVE_FILE)
+        if ok and exists then
+            pcall(delfile, SESSION_SAVE_FILE)
+        end
+    else
+        WriteJsonFile(SESSION_SAVE_FILE, {})
+    end
+end
+
+local function LoadSavedSessionKey()
+    local env = (type(getgenv) == "function" and getgenv()) or _G
+    if HasValue(env.NHATCO_SAVED_KEY) then
+        return Trim(env.NHATCO_SAVED_KEY)
+    end
+
+    local data = ReadJsonFile(SESSION_SAVE_FILE)
+    if data and HasValue(data.SavedKey) then
+        return Trim(data.SavedKey)
+    end
+    return nil
+end
+
+local function ParseExpireTimestamp(expiresAt)
+    if type(expiresAt) == "number" then
+        return expiresAt
+    end
+    if type(expiresAt) ~= "string" then
+        return nil
+    end
+    local clean = Trim(expiresAt)
+    if clean == "" or clean == "..." then
+        return nil
+    end
+    local num = tonumber(clean)
+    if num then
+        return num
+    end
+
+    local y, m, d, H, M, S = clean:match("^(%d%d%d%d)%-(%d%d)%-(%d%d)%s+(%d%d):(%d%d):(%d%d)$")
+    if y then
+        return os.time({
+            year = tonumber(y),
+            month = tonumber(m),
+            day = tonumber(d),
+            hour = tonumber(H),
+            min = tonumber(M),
+            sec = tonumber(S)
+        })
+    end
+    return nil
+end
+
+local function FormatRemaining(secondsLeft)
+    if secondsLeft <= 0 then
+        return "0s"
+    end
+    local days = math.floor(secondsLeft / 86400)
+    local hours = math.floor((secondsLeft % 86400) / 3600)
+    local mins = math.floor((secondsLeft % 3600) / 60)
+    local secs = math.floor(secondsLeft % 60)
+
+    if days > 0 then
+        return string.format("%dd %dh %dm", days, hours, mins)
+    elseif hours > 0 then
+        return string.format("%dh %dm", hours, mins)
+    elseif mins > 0 then
+        return string.format("%dm %ds", mins, secs)
+    else
+        return string.format("%ds", secs)
+    end
+end
+
+local function EvaluateTimedKey(entry, nowTs)
+    if type(entry) ~= "table" or not HasValue(entry.Key) then
+        return nil
+    end
+
+    local keyVal = Trim(entry.Key)
+    local label = HasValue(entry.Label) and Trim(entry.Label) or "TIMED"
+    local durationSec = (tonumber(entry.DurationDays) or 0) * 86400 + (tonumber(entry.DurationHours) or 0) * 3600
+    local expireTs = ParseExpireTimestamp(entry.ExpiresAt)
+
+    if durationSec > 0 then
+        local startTs = GetStartTime(keyVal)
+        if not startTs then
+            startTs = nowTs
+            SaveStartTime(keyVal, startTs)
+        end
+        local durationExpire = startTs + durationSec
+        if not expireTs or durationExpire < expireTs then
+            expireTs = durationExpire
+        end
+    end
+
+    if expireTs then
+        local left = expireTs - nowTs
+        if left <= 0 then
+            return {
+                valid = false,
+                expired = true,
+                tier = label,
+                detail = "Key thoi gian da het han"
+            }
+        end
+        return {
+            valid = true,
+            expired = false,
+            tier = label,
+            detail = "Con lai: " .. FormatRemaining(left)
+        }
+    end
+
+    return {
+        valid = true,
+        expired = false,
+        tier = label,
+        detail = "Key thoi gian hop le"
+    }
+end
+
+local function CheckKeyValid(inputKey)
+    local cleaned = Trim(inputKey)
+    if cleaned == "" or cleaned == "..." then
+        return false, nil, "Chua nhap key"
+    end
+
+    if HasValue(CONFIG.Keys.PremiumKey) and cleaned == Trim(CONFIG.Keys.PremiumKey) then
+        return true, "PREMIUM", "Key Premium hop le"
+    end
+
+    if HasValue(CONFIG.Keys.FreeKey) and cleaned == Trim(CONFIG.Keys.FreeKey) then
+        return true, "FREE", "Key Free hop le"
+    end
+
+    if type(CONFIG.Keys.ExtraKeys) == "table" then
+        for _, k in ipairs(CONFIG.Keys.ExtraKeys) do
+            if HasValue(k) and cleaned == Trim(k) then
+                return true, "EXTRA", "Key hop le"
+            end
+        end
+    end
+
+    if type(CONFIG.Keys.TimedKeys) == "table" then
+        local nowTs = os.time()
+        for _, entry in ipairs(CONFIG.Keys.TimedKeys) do
+            if type(entry) == "table" and HasValue(entry.Key) and cleaned == Trim(entry.Key) then
+                local res = EvaluateTimedKey(entry, nowTs)
+                if res then
+                    if res.valid then
+                        return true, res.tier, res.detail
+                    else
+                        return false, "EXPIRED", res.detail
+                    end
+                end
+            end
+        end
+    end
+
+    return false, "INVALID", "Key khong hop le"
+end
+
+local function RunLuaCode(codeString, label)
+    if type(loadstring) ~= "function" then
+        ShowRobloxToast(
+            CONFIG.Name .. " - Canh bao",
+            "Moi truong khong ho tro loadstring (" .. label .. ")",
+            Palette.Error,
+            3.5
+        )
+        return false
+    end
+
+    local compiled, compileErr = loadstring(codeString)
+    if not compiled then
+        warn("[" .. CONFIG.Name .. "] Loi bien dich " .. label .. ": " .. tostring(compileErr))
+        ShowRobloxToast(
+            CONFIG.Name .. " - Loi ma",
+            "Khong the bien dich ma nguon",
+            Palette.Error,
+            3.5
+        )
+        return false
+    end
+
+    local ok, runErr = pcall(compiled)
+    if not ok then
+        warn("[" .. CONFIG.Name .. "] Loi thuc thi " .. label .. ": " .. tostring(runErr))
+        ShowRobloxToast(
+            CONFIG.Name .. " - Loi thuc thi",
+            "Da xay ra loi khi khoi chay",
+            Palette.Error,
+            3.5
+        )
+        return false
+    end
+
+    return true
+end
+
+local function ExecuteNextScript()
+    local cfg = CONFIG.NextScript
+
+    if type(cfg.DirectScript) == "function" then
+        pcall(cfg.DirectScript)
+        return
+    elseif HasValue(cfg.DirectScript) then
+        RunLuaCode(Trim(cfg.DirectScript), "DirectScript")
+        return
+    end
+
+    if HasValue(cfg.LoadstringUrl) then
+        local url = Trim(cfg.LoadstringUrl)
+        local ok, src = pcall(function()
+            return game:HttpGet(url)
+        end)
+        if ok and type(src) == "string" and src ~= "" then
+            RunLuaCode(src, "LoadstringUrl")
+        else
+            ShowRobloxToast(
+                CONFIG.Name .. " - Loi tai",
+                "Khong tai duoc du lieu tu duong dan",
+                Palette.Error,
+                3.5
+            )
+        end
+        return
+    end
+
+    if HasValue(cfg.RawScriptUrl) then
+        local rawUrl = Trim(cfg.RawScriptUrl)
+        local ok, rawContent = pcall(function()
+            return game:HttpGet(rawUrl)
+        end)
+        if ok and type(rawContent) == "string" and rawContent ~= "" then
+            RunLuaCode(rawContent, "RawScriptUrl")
+        else
+            ShowRobloxToast(
+                CONFIG.Name .. " - Loi Raw",
+                "Khong doc duoc noi dung raw",
+                Palette.Error,
+                3.5
+            )
+        end
+        return
+    end
+
+    if type(cfg.DefaultAction) == "function" then
+        pcall(cfg.DefaultAction)
+    end
+end
+
+if CONFIG.AutoLogin then
+    local savedKey = LoadSavedSessionKey()
+    if savedKey then
+        local validSaved, tierSaved, detailSaved = CheckKeyValid(savedKey)
+        if validSaved then
+            ShowRobloxToast(
+                CONFIG.Name .. " - Tu dong dang nhap",
+                tierSaved .. " - " .. detailSaved,
+                Palette.Success,
+                3.0
+            )
+            ExecuteNextScript()
+            return
+        else
+            ClearSavedSession()
+            if tierSaved == "EXPIRED" then
+                ShowRobloxToast(
+                    CONFIG.Name .. " - Key da luu het han",
+                    detailSaved .. " Vui long nhap key moi",
+                    Palette.Error,
+                    3.0
+                )
+            end
+        end
+    end
+end
+
+local ScreenGui = Create("ScreenGui", {
+    Name = "NHATCO_KEYSYSTEM_UI",
+    ResetOnSpawn = false,
+    IgnoreGuiInset = true,
+    DisplayOrder = 150,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+}, ParentGui)
+
+local MainWindow = Create("Frame", {
+    Name = "MainWindow",
+    Size = UDim2.fromOffset(760, 430),
+    Position = UDim2.fromScale(0.5, 0.5),
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    BackgroundColor3 = Palette.OuterBg,
+    BorderSizePixel = 0,
+    ClipsDescendants = true
+}, ScreenGui)
+AddCorner(MainWindow, 18)
+
+local UIScaleInst = Create("UIScale", {
+    Scale = 1
+}, MainWindow)
+
+local function RefreshScale()
+    local cam = workspace.CurrentCamera
+    if cam then
+        local vp = cam.ViewportSize
+        UIScaleInst.Scale = math.clamp(
+            math.min(1, (vp.X - 24) / 772, (vp.Y - 24) / 442),
+            0.52,
+            1
+        )
+    end
+end
+RefreshScale()
+
+if workspace.CurrentCamera then
+    workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(RefreshScale)
+end
+
+local TopBar = Create("Frame", {
+    Name = "TopBar",
+    Size = UDim2.new(1, 0, 0, 44),
+    BackgroundColor3 = Palette.TopBar,
+    BorderSizePixel = 0,
+    ClipsDescendants = true,
+    ZIndex = 5
+}, MainWindow)
+AddCorner(TopBar, 18)
+
+Create("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(16, 44, 88)),
+        ColorSequenceKeypoint.new(0.55, Palette.TopBar),
+        ColorSequenceKeypoint.new(1, Palette.OuterBg)
+    }),
+    Rotation = 0
+}, TopBar)
+
+CreateIconImage(TopBar, 26, UDim2.fromOffset(12, 9), 6, 8)
+
+local TopTitle = AddLabel(TopBar, {
+    Text = CONFIG.Name .. "  " .. CONFIG.SubBrand,
+    Size = UDim2.new(0, 260, 1, 0),
+    Position = UDim2.fromOffset(44, 0),
+    Font = Enum.Font.GothamBold,
+    TextSize = 14,
+    TextColor3 = Palette.TextWhite,
+    ZIndex = 6
+})
+Create("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Palette.TextWhite),
+        ColorSequenceKeypoint.new(0.45, Palette.CyanBright),
+        ColorSequenceKeypoint.new(1, Palette.TextSoft)
+    })
+}, TopTitle)
+
+local MinimizeBtn = Create("TextButton", {
+    Name = "MinimizeBtn",
+    Size = UDim2.fromOffset(30, 30),
+    Position = UDim2.new(1, -74, 0, 7),
+    BackgroundColor3 = Palette.CardBg,
+    BackgroundTransparency = 0.4,
+    Text = "-",
+    TextColor3 = Palette.TextSoft,
+    Font = Enum.Font.GothamBold,
+    TextSize = 15,
+    AutoButtonColor = false,
+    BorderSizePixel = 0,
+    ZIndex = 7
+}, TopBar)
+AddCorner(MinimizeBtn, 8)
+
+local CloseBtn = Create("TextButton", {
+    Name = "CloseBtn",
+    Size = UDim2.fromOffset(30, 30),
+    Position = UDim2.new(1, -40, 0, 7),
+    BackgroundColor3 = Palette.CardBg,
+    BackgroundTransparency = 0.4,
+    Text = "x",
+    TextColor3 = Palette.TextSoft,
+    Font = Enum.Font.GothamMedium,
+    TextSize = 18,
+    AutoButtonColor = false,
+    BorderSizePixel = 0,
+    ZIndex = 7
+}, TopBar)
+AddCorner(CloseBtn, 8)
+
+MinimizeBtn.MouseEnter:Connect(function()
+    TweenService:Create(MinimizeBtn, TweenInfo.new(0.14), {
+        BackgroundColor3 = Palette.CardBg,
+        BackgroundTransparency = 0,
+        TextColor3 = Palette.CyanBright
+    }):Play()
+end)
+MinimizeBtn.MouseLeave:Connect(function()
+    TweenService:Create(MinimizeBtn, TweenInfo.new(0.14), {
+        BackgroundTransparency = 0.4,
+        TextColor3 = Palette.TextSoft
+    }):Play()
+end)
+
+CloseBtn.MouseEnter:Connect(function()
+    TweenService:Create(CloseBtn, TweenInfo.new(0.14), {
+        BackgroundColor3 = Color3.fromRGB(95, 22, 38),
+        BackgroundTransparency = 0,
+        TextColor3 = Palette.Error
+    }):Play()
+end)
+CloseBtn.MouseLeave:Connect(function()
+    TweenService:Create(CloseBtn, TweenInfo.new(0.14), {
+        BackgroundColor3 = Palette.CardBg,
+        BackgroundTransparency = 0.4,
+        TextColor3 = Palette.TextSoft
+    }):Play()
+end)
+
+local dragging = false
+local dragStart, startPos
+
+TopBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainWindow.Position
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if dragging and (
+        input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch
+    ) then
+        local delta = input.Position - dragStart
+        MainWindow.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+local Body = Create("Frame", {
+    Name = "Body",
+    Size = UDim2.new(1, 0, 1, -44),
+    Position = UDim2.fromOffset(0, 44),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    ClipsDescendants = true,
+    ZIndex = 2
+}, MainWindow)
+AddCorner(Body, 16)
+
+local LeftCol = Create("Frame", {
+    Name = "LeftColumn",
+    Size = UDim2.new(0.38, 0, 1, 0),
+    Position = UDim2.fromScale(0, 0),
+    BackgroundColor3 = Palette.LeftPanel,
+    BorderSizePixel = 0,
+    ClipsDescendants = true,
+    ZIndex = 2
+}, Body)
+AddCorner(LeftCol, 16)
+
+Create("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(14, 42, 86)),
+        ColorSequenceKeypoint.new(0.55, Palette.LeftPanel),
+        ColorSequenceKeypoint.new(1, Palette.OuterBg)
+    }),
+    Rotation = 135
+}, LeftCol)
+
+CreateIconImage(
+    LeftCol,
+    108,
+    UDim2.new(0.5, -54, 0, 44),
+    3,
+    24
+)
+
+local HeroTitle = AddLabel(LeftCol, {
+    Text = CONFIG.Name,
+    Size = UDim2.new(1, -24, 0, 42),
+    Position = UDim2.new(0, 12, 0, 162),
+    Font = Enum.Font.GothamBlack,
+    TextSize = 34,
+    TextXAlignment = Enum.TextXAlignment.Center,
+    TextColor3 = Palette.CyanBright,
+    ZIndex = 3
+})
+Create("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Palette.TextWhite),
+        ColorSequenceKeypoint.new(0.5, Palette.CyanBright),
+        ColorSequenceKeypoint.new(1, Palette.BlueLight)
+    }),
+    Rotation = 90
+}, HeroTitle)
+
+AddLabel(LeftCol, {
+    Text = CONFIG.SubBrand,
+    Size = UDim2.new(1, -24, 0, 24),
+    Position = UDim2.new(0, 12, 0, 204),
+    Font = Enum.Font.GothamMedium,
+    TextSize = 18,
+    TextXAlignment = Enum.TextXAlignment.Center,
+    TextColor3 = Palette.TextSoft,
+    ZIndex = 3
+})
+
+AddLabel(LeftCol, {
+    Text = CONFIG.Tagline,
+    Size = UDim2.new(1, -20, 0, 20),
+    Position = UDim2.new(0, 10, 0, 236),
+    Font = Enum.Font.GothamMedium,
+    TextSize = 11,
+    TextXAlignment = Enum.TextXAlignment.Center,
+    TextColor3 = Palette.TextMuted,
+    ZIndex = 3
+})
+
+local CenterDivider = Create("Frame", {
+    Name = "CenterDivider",
+    Size = UDim2.new(0, 2, 0.84, 0),
+    Position = UDim2.new(0.38, -1, 0.08, 0),
+    BackgroundColor3 = Palette.CyanBright,
+    BackgroundTransparency = 0.45,
+    BorderSizePixel = 0,
+    ZIndex = 4
+}, Body)
+AddCorner(CenterDivider, 2)
+
+Create("UIGradient", {
+    Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 1),
+        NumberSequenceKeypoint.new(0.2, 0.45),
+        NumberSequenceKeypoint.new(0.5, 0.1),
+        NumberSequenceKeypoint.new(0.8, 0.45),
+        NumberSequenceKeypoint.new(1, 1)
+    }),
+    Rotation = 90
+}, CenterDivider)
+
+local RightCol = Create("Frame", {
+    Name = "RightColumn",
+    Size = UDim2.new(0.62, 0, 1, 0),
+    Position = UDim2.new(0.38, 0, 0, 0),
+    BackgroundColor3 = Palette.RightPanel,
+    BorderSizePixel = 0,
+    ClipsDescendants = true,
+    ZIndex = 2
+}, Body)
+AddCorner(RightCol, 16)
+
+Create("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(10, 26, 56)),
+        ColorSequenceKeypoint.new(0.6, Palette.RightPanel),
+        ColorSequenceKeypoint.new(1, Palette.OuterBg)
+    }),
+    Rotation = 25
+}, RightCol)
+
+local KeyHeadingRow = Create("Frame", {
+    Size = UDim2.new(1, -64, 0, 38),
+    Position = UDim2.fromOffset(32, 26),
+    BackgroundTransparency = 1,
+    ZIndex = 3
+}, RightCol)
+
+local KeyIconBadge = Create("Frame", {
+    Size = UDim2.fromOffset(30, 30),
+    Position = UDim2.fromOffset(0, 4),
+    BackgroundTransparency = 1,
+    ZIndex = 4
+}, KeyHeadingRow)
+
+local KeyRing = Create("Frame", {
+    Size = UDim2.fromOffset(12, 12),
+    Position = UDim2.fromOffset(2, 12),
+    BackgroundColor3 = Palette.CyanBright,
+    BorderSizePixel = 0,
+    ZIndex = 4
+}, KeyIconBadge)
+AddCorner(KeyRing, 12)
+
+local KeyHole = Create("Frame", {
+    Size = UDim2.fromOffset(4, 4),
+    Position = UDim2.fromOffset(4, 4),
+    BackgroundColor3 = Palette.RightPanel,
+    BorderSizePixel = 0,
+    ZIndex = 5
+}, KeyRing)
+AddCorner(KeyHole, 4)
+
+local KeyShaft = Create("Frame", {
+    Size = UDim2.fromOffset(15, 3),
+    Position = UDim2.fromOffset(12, 17),
+    Rotation = -35,
+    BackgroundColor3 = Palette.CyanBright,
+    BorderSizePixel = 0,
+    ZIndex = 4
+}, KeyIconBadge)
+AddCorner(KeyShaft, 3)
+
+AddLabel(KeyHeadingRow, {
+    Text = "Get Key",
+    Size = UDim2.new(1, -38, 1, 0),
+    Position = UDim2.fromOffset(36, 0),
+    Font = Enum.Font.GothamBold,
+    TextSize = 26,
+    TextColor3 = Palette.TextWhite,
+    ZIndex = 4
+})
+
+AddLabel(RightCol, {
+    Text = "nhap key xac thuc",
+    Size = UDim2.new(1, -64, 0, 20),
+    Position = UDim2.fromOffset(32, 66),
+    Font = Enum.Font.Gotham,
+    TextSize = 13,
+    TextColor3 = Palette.TextSoft,
+    ZIndex = 3
+})
+
+local InputFrame = Create("Frame", {
+    Name = "InputFrame",
+    Size = UDim2.new(1, -64, 0, 48),
+    Position = UDim2.fromOffset(32, 96),
+    BackgroundColor3 = Palette.InputBg,
+    BorderSizePixel = 0,
+    ClipsDescendants = true,
+    ZIndex = 3
+}, RightCol)
+AddCorner(InputFrame, 12)
+
+local LockHolder = Create("Frame", {
+    Size = UDim2.fromOffset(20, 20),
+    Position = UDim2.new(0, 16, 0.5, -10),
+    BackgroundTransparency = 1,
+    ZIndex = 4
+}, InputFrame)
+
+local LockShackle = Create("Frame", {
+    Size = UDim2.fromOffset(10, 8),
+    Position = UDim2.fromOffset(5, 1),
+    BackgroundColor3 = Palette.TextSoft,
+    BorderSizePixel = 0,
+    ZIndex = 4
+}, LockHolder)
+AddCorner(LockShackle, 6)
+
+local LockShackleCut = Create("Frame", {
+    Size = UDim2.fromOffset(6, 5),
+    Position = UDim2.fromOffset(7, 3),
+    BackgroundColor3 = Palette.InputBg,
+    BorderSizePixel = 0,
+    ZIndex = 5
+}, LockHolder)
+AddCorner(LockShackleCut, 4)
+
+local LockBody = Create("Frame", {
+    Size = UDim2.fromOffset(14, 10),
+    Position = UDim2.fromOffset(3, 8),
+    BackgroundColor3 = Palette.TextSoft,
+    BorderSizePixel = 0,
+    ZIndex = 5
+}, LockHolder)
+AddCorner(LockBody, 3)
+
+local initialKey = HasValue(CONFIG.Keys.AutoFillKey) and Trim(CONFIG.Keys.AutoFillKey) or ""
+
+local KeyBox = Create("TextBox", {
+    Name = "KeyBox",
+    Size = UDim2.new(1, -44, 1, 0),
+    Position = UDim2.fromOffset(44, 0),
+    BackgroundTransparency = 1,
+    Text = initialKey,
+    PlaceholderText = "Nhap access key cua ban...",
+    PlaceholderColor3 = Palette.TextMuted,
+    TextColor3 = Palette.TextWhite,
+    Font = Enum.Font.Gotham,
+    TextSize = 14,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    ClearTextOnFocus = false,
+    ZIndex = 5
+}, InputFrame)
+
+local VerifyBtn = Create("TextButton", {
+    Name = "VerifyBtn",
+    Size = UDim2.new(1, -64, 0, 50),
+    Position = UDim2.fromOffset(32, 154),
+    BackgroundColor3 = Palette.BluePrimary,
+    Text = "",
+    AutoButtonColor = false,
+    BorderSizePixel = 0,
+    ClipsDescendants = true,
+    ZIndex = 4
+}, RightCol)
+AddCorner(VerifyBtn, 12)
+
+Create("UIGradient", {
+    Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Palette.BlueLight),
+        ColorSequenceKeypoint.new(0.5, Palette.BluePrimary),
+        ColorSequenceKeypoint.new(1, Palette.BlueDeep)
+    }),
+    Rotation = 0
+}, VerifyBtn)
+
+local VerifyContent = Create("Frame", {
+    Size = UDim2.fromScale(1, 1),
+    BackgroundTransparency = 1,
+    ZIndex = 5
+}, VerifyBtn)
+
+local CheckCircle = Create("Frame", {
+    Size = UDim2.fromOffset(20, 20),
+    Position = UDim2.new(0.5, -80, 0.5, -10),
+    BackgroundColor3 = Palette.TextWhite,
+    BackgroundTransparency = 0.85,
+    BorderSizePixel = 0,
+    ZIndex = 6
+}, VerifyContent)
+AddCorner(CheckCircle, 20)
+
+AddLabel(CheckCircle, {
+    Text = "OK",
+    Size = UDim2.fromScale(1, 1),
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextColor3 = Palette.TextWhite,
+    TextXAlignment = Enum.TextXAlignment.Center,
+    ZIndex = 7
+})
+
+local VerifyLabel = AddLabel(VerifyContent, {
+    Text = "VERIFY KEY",
+    Size = UDim2.new(0, 140, 1, 0),
+    Position = UDim2.new(0.5, -52, 0, 0),
+    Font = Enum.Font.GothamBold,
+    TextSize = 15,
+    TextColor3 = Palette.TextWhite,
+    ZIndex = 6
+})
+
+VerifyBtn.MouseEnter:Connect(function()
+    TweenService:Create(VerifyBtn, TweenInfo.new(0.15), { BackgroundTransparency = 0.08 }):Play()
+end)
+
+VerifyBtn.MouseLeave:Connect(function()
+    TweenService:Create(VerifyBtn, TweenInfo.new(0.15), { BackgroundTransparency = 0 }):Play()
+end)
+
+local QuickRow = Create("Frame", {
+    Name = "QuickActionsRow",
+    Size = UDim2.new(1, -64, 0, 44),
+    Position = UDim2.fromOffset(32, 216),
+    BackgroundTransparency = 1,
+    ZIndex = 3
+}, RightCol)
+
+local GetKeyFreeBtn = CreateActionCard(
+    QuickRow,
+    "GetKey Free",
+    "COPY FREE",
+    UDim2.new(0.3333, -6, 1, 0),
+    UDim2.new(0, 0, 0, 0),
+    Palette.CardBg,
+    Palette.CyanBright,
+    Palette.TextWhite
+)
+
+local BuyPremiumBtn = CreateActionCard(
+    QuickRow,
+    "Buy Key Premium",
+    "COPY VIP",
+    UDim2.new(0.3333, -6, 1, 0),
+    UDim2.new(0.3333, 4, 0, 0),
+    Color3.fromRGB(36, 26, 10),
+    Palette.GoldBright,
+    Palette.GoldBright
+)
+
+local DiscordGroupBtn = CreateActionCard(
+    QuickRow,
+    "Nhom Discord",
+    "COPY LINK",
+    UDim2.new(0.3333, -6, 1, 0),
+    UDim2.new(0.6666, 6, 0, 0),
+    Palette.DiscordBg,
+    Palette.DiscordGlow,
+    Palette.TextWhite
+)
+
+local InfoStrip = Create("Frame", {
+    Name = "InfoStrip",
+    Size = UDim2.new(1, -64, 0, 34),
+    Position = UDim2.fromOffset(32, 270),
+    BackgroundColor3 = Palette.InputBg,
+    BorderSizePixel = 0,
+    ClipsDescendants = true,
+    ZIndex = 3
+}, RightCol)
+AddCorner(InfoStrip, 10)
+
+local InfoStripText = AddLabel(InfoStrip, {
+    Text = "Chon GetKey Free, Buy Key Premium hoac Nhom Discord de sao chep",
+    Size = UDim2.new(1, -20, 1, 0),
+    Position = UDim2.fromOffset(10, 0),
+    Font = Enum.Font.Gotham,
+    TextSize = 11,
+    TextColor3 = Palette.TextSoft,
+    ZIndex = 4
+})
+
+local BottomBar = Create("Frame", {
+    Name = "BottomBar",
+    Size = UDim2.new(1, -64, 0, 24),
+    Position = UDim2.new(0, 32, 1, -34),
+    BackgroundTransparency = 1,
+    ZIndex = 4
+}, RightCol)
+
+local InfoBadge = Create("Frame", {
+    Size = UDim2.fromOffset(18, 18),
+    Position = UDim2.fromOffset(0, 3),
+    BackgroundColor3 = Palette.CardBg,
+    BorderSizePixel = 0,
+    ZIndex = 5
+}, BottomBar)
+AddCorner(InfoBadge, 18)
+
+AddLabel(InfoBadge, {
+    Text = "i",
+    Size = UDim2.fromScale(1, 1),
+    Font = Enum.Font.GothamBold,
+    TextSize = 11,
+    TextColor3 = Palette.TextMuted,
+    TextXAlignment = Enum.TextXAlignment.Center,
+    ZIndex = 6
+})
+
+local StatusLabel = AddLabel(BottomBar, {
+    Text = "Status: Waiting...",
+    Size = UDim2.new(0.65, -24, 1, 0),
+    Position = UDim2.fromOffset(24, 0),
+    Font = Enum.Font.Gotham,
+    TextSize = 13,
+    TextColor3 = Palette.TextSoft,
+    ZIndex = 5
+})
+
+AddLabel(BottomBar, {
+    Text = "Version " .. CONFIG.Version,
+    Size = UDim2.new(0.35, 0, 1, 0),
+    Position = UDim2.new(0.65, 0, 0, 0),
+    Font = Enum.Font.Gotham,
+    TextSize = 13,
+    TextXAlignment = Enum.TextXAlignment.Right,
+    TextColor3 = Palette.TextMuted,
+    ZIndex = 5
+})
+
+local isMinimized = false
+local isVerifying = false
+local isClosingSuccess = false
+
+local function CopyLinkAction(titleLabel, rawLink, accentColor)
+    local linkText = Trim(rawLink)
+    if linkText == "" then
+        linkText = "..."
+    end
+
+    local copied = false
+    if type(setclipboard) == "function" then
+        local ok = pcall(function()
+            setclipboard(linkText)
+        end)
+        copied = ok
+    end
+
+    InfoStripText.TextColor3 = accentColor
+    StatusLabel.TextColor3 = accentColor
+
+    if copied then
+        InfoStripText.Text = "Da sao chep " .. titleLabel .. ": " .. linkText
+        StatusLabel.Text = "Status: Da sao chep"
+        ShowRobloxToast(
+            CONFIG.Name .. " - Da sao chep",
+            "Da sao chep " .. titleLabel .. " vao bo nho tam",
+            accentColor,
+            2.5
+        )
+    else
+        InfoStripText.Text = titleLabel .. ": " .. linkText
+        StatusLabel.Text = "Status: Xem lien ket phia tren"
+        ShowRobloxToast(
+            CONFIG.Name .. " - Lien ket",
+            titleLabel .. ": " .. linkText,
+            accentColor,
+            3.2
+        )
+    end
+end
+
+GetKeyFreeBtn.MouseButton1Click:Connect(function()
+    CopyLinkAction("GetKey Free", CONFIG.Links.FreeKeyLink, Palette.CyanBright)
+end)
+
+BuyPremiumBtn.MouseButton1Click:Connect(function()
+    CopyLinkAction("Buy Key Premium", CONFIG.Links.BuyPremiumLink, Palette.GoldBright)
+end)
+
+DiscordGroupBtn.MouseButton1Click:Connect(function()
+    CopyLinkAction("Nhom Discord", CONFIG.Links.DiscordLink, Palette.DiscordGlow)
+end)
+
+MinimizeBtn.MouseButton1Click:Connect(function()
+    if isClosingSuccess then return end
+    isMinimized = not isMinimized
+    if isMinimized then
+        Body.Visible = false
+        TweenService:Create(MainWindow, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.fromOffset(760, 44)
+        }):Play()
+    else
+        local t = TweenService:Create(MainWindow, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.fromOffset(760, 430)
+        })
+        t:Play()
+        t.Completed:Connect(function()
+            if not isMinimized and not isClosingSuccess then
+                Body.Visible = true
+            end
+        end)
+    end
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    if isClosingSuccess then return end
+    local t = TweenService:Create(MainWindow, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        Size = UDim2.fromOffset(760, 360),
+        BackgroundTransparency = 1
+    })
+    t:Play()
+    t.Completed:Connect(function()
+        if ScreenGui then
+            ScreenGui:Destroy()
+        end
+    end)
+end)
+
+local function DismissGetKeyUiAndRunNext(tier, detailMsg, validKeyStr)
+    isClosingSuccess = true
+
+    if CONFIG.AutoLogin and validKeyStr then
+        SaveVerifiedSession(validKeyStr)
+    end
+
+    ShowRobloxToast(
+        CONFIG.Name .. " - Xac nhan thanh cong",
+        tier .. " - " .. detailMsg,
+        Palette.Success,
+        3.0
+    )
+
+    task.wait(0.4)
+
+    local closeTween = TweenService:Create(
+        MainWindow,
+        TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.In),
+        {
+            Size = UDim2.fromOffset(680, 120),
+            BackgroundTransparency = 1
+        }
+    )
+    closeTween:Play()
+    closeTween.Completed:Wait()
+
+    if ScreenGui then
+        ScreenGui:Destroy()
+    end
+
+    ExecuteNextScript()
+end
+
+VerifyBtn.MouseButton1Click:Connect(function()
+    if isVerifying or isClosingSuccess then return end
+
+    local entered = Trim(KeyBox.Text)
+    if entered == "" or entered == "..." then
+        StatusLabel.Text = "Status: Vui long nhap key..."
+        StatusLabel.TextColor3 = Palette.Error
+        ShowRobloxToast(
+            CONFIG.Name .. " - Thong bao",
+            "Ban chua nhap key hop le",
+            Palette.Error,
+            2.4
+        )
+        return
+    end
+
+    isVerifying = true
+    VerifyLabel.Text = "VERIFYING..."
+    StatusLabel.Text = "Status: Dang kiem tra..."
+    StatusLabel.TextColor3 = Palette.CyanBright
+
+    task.wait(0.5)
+
+    local valid, tier, detailMsg = CheckKeyValid(entered)
+    if valid then
+        StatusLabel.Text = "Status: " .. detailMsg
+        StatusLabel.TextColor3 = Palette.Success
+        VerifyLabel.Text = "VERIFIED"
+        DismissGetKeyUiAndRunNext(tier, detailMsg, entered)
+    elseif tier == "EXPIRED" then
+        ClearSavedSession()
+        StatusLabel.Text = "Status: " .. detailMsg
+        StatusLabel.TextColor3 = Palette.Error
+        VerifyLabel.Text = "VERIFY KEY"
+        ShowRobloxToast(
+            CONFIG.Name .. " - Key het han",
+            detailMsg .. " Vui long lay key moi",
+            Palette.Error,
+            3.0
+        )
+    else
+        StatusLabel.Text = "Status: Key khong hop le"
+        StatusLabel.TextColor3 = Palette.Error
+        VerifyLabel.Text = "VERIFY KEY"
+        ShowRobloxToast(
+            CONFIG.Name .. " - Key khong hop le",
+            "Key ban nhap khong dung Vui long thu lai",
+            Palette.Error,
+            2.8
+        )
+    end
+
+    isVerifying = false
+end)
+
+MainWindow.Size = UDim2.fromOffset(720, 380)
+TweenService:Create(MainWindow, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+    Size = UDim2.fromOffset(760, 430)
+}):Play()
